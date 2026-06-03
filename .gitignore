@@ -1,0 +1,34 @@
+# Build outputs
+*.o
+*.crf
+*.d
+*.a
+*.lib
+*.lst
+*.axf
+*.elf
+*.hex
+*.bin
+*.map
+*.lnp
+*.dep
+
+# IDE and tools
+.vscode/
+.vscode/*.log
+.vscode/*.lock
+*.uvguix.*
+*.uvoptx
+*.uvprojx~
+
+# Build logs
+*.build_log.htm
+*.htm
+*.log
+*.lock
+
+# Temporary files
+*~
+*.swp
+*.swo
+.DS_Store
