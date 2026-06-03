@@ -12,6 +12,7 @@
 *.map
 *.lnp
 *.dep
+*.iex
 
 # IDE and tools
 .vscode/
