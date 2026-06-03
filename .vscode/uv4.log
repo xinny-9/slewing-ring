@@ -1,0 +1,17 @@
+*** Using Compiler 'V5.06 update 6 (build 750)', folder: 'D:\Keil_v5\ARM\ARMCC\Bin'
+Build target 'slewing ring'
+compiling Data.c...
+..\zdt stepper\Data.h(12): error:  #5: cannot open source input file "dma.h": No such file or directory
+  #include "dma.h"
+..\zdt stepper\Data.c: 0 warnings, 1 error
+compiling Control.c...
+..\zdt stepper\CONTROL.h(13): error:  #5: cannot open source input file "dma.h": No such file or directory
+  #include "dma.h" 
+..\zdt stepper\Control.c: 0 warnings, 1 error
+compiling main.c...
+..\zdt stepper\Control.h(13): error:  #5: cannot open source input file "dma.h": No such file or directory
+  #include "dma.h" 
+../Core/Src/main.c: 0 warnings, 1 error
+"slewing ring\slewing ring.axf" - 3 Error(s), 0 Warning(s).
+Target not created.
+Build Time Elapsed:  00:00:01
