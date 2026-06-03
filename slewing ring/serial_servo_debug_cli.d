@@ -25,6 +25,8 @@ slewing ring\serial_servo_debug_cli.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32
 slewing ring\serial_servo_debug_cli.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash.h
 slewing ring\serial_servo_debug_cli.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash_ex.h
 slewing ring\serial_servo_debug_cli.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_pwr.h
+slewing ring\serial_servo_debug_cli.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h
+slewing ring\serial_servo_debug_cli.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h
 slewing ring\serial_servo_debug_cli.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
 slewing ring\serial_servo_debug_cli.o: ..\serial_servo_f103_drv\serial_servo_hal.h
 slewing ring\serial_servo_debug_cli.o: ..\serial_servo_f103_drv\serial_servo.h

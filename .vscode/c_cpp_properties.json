@@ -15,7 +15,7 @@
                 "d:\\stm32hal\\slewing ring\\Core\\Src",
                 "d:\\stm32hal\\slewing ring\\Drivers\\STM32F1xx_HAL_Driver\\Src",
                 "D:\\stm32hal\\slewing ring\\serial_servo_f103_drv",
-                "D:\\stm32hal\\slewing ring\\zdt stepper"
+                "D:\\stm32hal\\slewing ring\\zdt_stepper"
             ],
             "defines": [
                 "USE_HAL_DRIVER",
@@ -107,7 +107,7 @@
                 "d:\\stm32hal\\slewing ring\\Drivers\\CMSIS\\Device\\ST\\STM32F1xx\\Include",
                 "d:\\stm32hal\\slewing ring\\Drivers\\CMSIS\\Include",
                 "d:\\stm32hal\\slewing ring\\serial_servo_f103_drv",
-                "d:\\stm32hal\\slewing ring\\zdt stepper",
+                "d:\\stm32hal\\slewing ring\\zdt_stepper",
                 "D:\\Keil_v5\\ARM\\ARMCC\\include",
                 "D:\\Keil_v5\\ARM\\ARMCC\\include\\rw",
                 "d:\\stm32hal\\slewing ring\\MDK-ARM",

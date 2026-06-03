@@ -1,5 +1,5 @@
-slewing ring\control.o: ..\zdt stepper\Control.c
-slewing ring\control.o: ..\zdt stepper\CONTROL.h
+slewing ring\control.o: ..\zdt_stepper\Control.c
+slewing ring\control.o: ..\zdt_stepper\CONTROL.h
 slewing ring\control.o: ../Core/Inc/main.h
 slewing ring\control.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal.h
 slewing ring\control.o: ../Core/Inc/stm32f1xx_hal_conf.h
@@ -26,7 +26,9 @@ slewing ring\control.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_cortex
 slewing ring\control.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash.h
 slewing ring\control.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash_ex.h
 slewing ring\control.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_pwr.h
+slewing ring\control.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h
+slewing ring\control.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h
 slewing ring\control.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
 slewing ring\control.o: ../Core/Inc/usart.h
 slewing ring\control.o: ../Core/Inc/gpio.h
-slewing ring\control.o: ..\zdt stepper\Data.h
+slewing ring\control.o: ..\zdt_stepper\Data.h
