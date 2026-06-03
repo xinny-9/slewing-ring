@@ -29,8 +29,9 @@ slewing ring\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
 slewing ring\main.o: ../Core/Inc/usart.h
 slewing ring\main.o: ../Core/Inc/gpio.h
 slewing ring\main.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
-slewing ring\main.o: ..\serial_servo_f103_drv\serial_servo.h
+slewing ring\main.o: ../serial_servo_f103_drv/serial_servo.h
 slewing ring\main.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
-slewing ring\main.o: ..\serial_servo_f103_drv\serial_servo_debug_cli.h
-slewing ring\main.o: ..\serial_servo_f103_drv\serial_servo_hal.h
+slewing ring\main.o: ../serial_servo_f103_drv/serial_servo_debug_cli.h
+slewing ring\main.o: ../serial_servo_f103_drv/serial_servo_hal.h
 slewing ring\main.o: ..\zdt stepper\Control.h
+slewing ring\main.o: ..\zdt stepper\Data.h

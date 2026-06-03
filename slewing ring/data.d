@@ -27,3 +27,6 @@ slewing ring\data.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash.h
 slewing ring\data.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash_ex.h
 slewing ring\data.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_pwr.h
 slewing ring\data.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
+slewing ring\data.o: ../Core/Inc/usart.h
+slewing ring\data.o: ../Core/Inc/gpio.h
+slewing ring\data.o: ..\zdt stepper\CONTROL.h
