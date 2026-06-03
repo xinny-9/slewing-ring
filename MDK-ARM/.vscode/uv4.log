@@ -1,0 +1,27 @@
+*** Using Compiler 'V5.06 update 6 (build 750)', folder: 'D:\Keil_v5\ARM\ARMCC\Bin'
+Build target 'slewing ring'
+compiling serial_servo_debug_cli.c...
+..\serial_servo_f103_drv\serial_servo_debug_cli.c(38): warning:  #870-D: invalid multibyte character sequence
+      printf("   ⚙️ 串口总线舵机 STM32F103 调试 CLI 控制台就�? (USART3)\r\n");
+..\serial_servo_f103_drv\serial_servo_debug_cli.c(39): warning:  #870-D: invalid multibyte character sequence
+      printf("   使用说明: 在串口助手输入以下指�? (需勾选发送新�?):\r\n");
+..\serial_servo_f103_drv\serial_servo_debug_cli.c(39): warning:  #870-D: invalid multibyte character sequence
+      printf("   使用说明: 在串口助手输入以下指�? (需勾选发送新�?):\r\n");
+..\serial_servo_f103_drv\serial_servo_debug_cli.c(40): warning:  #870-D: invalid multibyte character sequence
+      printf("     1. pos <id> <pos> <time>  -> 控制转动到目标位�? (0~1000)\r\n");
+..\serial_servo_f103_drv\serial_servo_debug_cli.c(112): warning:  #870-D: invalid multibyte character sequence
+                  printf(">> [CLI执行]: 控制舵机 %d 运动至位�? %d, 耗时 %dms\r\n", id, pos, dur);
+..\serial_servo_f103_drv\serial_servo_debug_cli.c(137): warning:  #870-D: invalid multibyte character sequence
+                      printf(">> [回读失败] 舵机未响应！请排查供电或ID�?(r_pos:%d, r_vin:%d, r_temp:%d)\r\n", r1, r2, r3);
+..\serial_servo_f103_drv\serial_servo_debug_cli.c(148): warning:  #870-D: invalid multibyte character sequence
+                  printf(">> [CLI执行]: 紧急制�? 舵机 %d\r\n", id);
+..\serial_servo_f103_drv\serial_servo_debug_cli.c(195): warning:  #870-D: invalid multibyte character sequence
+                      printf(">> [CLI警告]: 未满足时间间�?(500ms限制)或电机未就绪，控制未执行！\r\n");
+..\serial_servo_f103_drv\serial_servo_debug_cli.c(202): warning:  #870-D: invalid multibyte character sequence
+             printf(">> 未知指令! 仅支持格�?: pos/read/stop/free/lock/motor_pos\r\n");
+..\serial_servo_f103_drv\serial_servo_debug_cli.c: 9 warnings, 0 errors
+linking...
+Program Size: Code=13372 RO-data=1628 RW-data=32 ZI-data=1464  
+FromELF: creating hex file...
+"slewing ring\slewing ring.axf" - 0 Error(s), 9 Warning(s).
+Build Time Elapsed:  00:00:01

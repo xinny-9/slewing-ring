@@ -1,35 +1,37 @@
-# Build outputs
+# Keil MDK-ARM Build Outputs
+MDK-ARM/slewing ring/
+MDK-ARM/slewing\ ring/
+MDK-ARM/Listings/
+MDK-ARM/Objects/
+MDK-ARM/DebugConfig/
+MDK-ARM/RTE/
+
+# Intermediate compile files
 *.o
 *.crf
 *.d
-*.a
-*.lib
-*.lst
 *.axf
-*.elf
 *.hex
 *.bin
 *.map
-*.lnp
 *.dep
 *.iex
-
-# IDE and tools
-.vscode/
-.vscode/*.log
-.vscode/*.lock
-*.uvguix.*
-*.uvoptx
-*.uvprojx~
-
-# Build logs
 *.build_log.htm
 *.htm
-*.log
-*.lock
 
-# Temporary files
+# VSCode logs and locks
+.vscode/*.log
+.vscode/*.lock
+
+# Keil User Layout
+MDK-ARM/*.uvguix.*
+MDK-ARM/*.uvgui.*
+MDK-ARM/*.uvoptx~
+MDK-ARM/*.uvprojx~
+
+# Archives and backup files
+*.zip
+*.tar.gz
+*.rar
 *~
 *.swp
-*.swo
-.DS_Store
