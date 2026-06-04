@@ -116,6 +116,10 @@ int main(void)
  /* 4. 初始化总线物理层驱动并挂载回调，同时启动 huart1 的首次 HAL 中断接收监听 */
   Serial_Servo_HAL_Init();
 
+  Control_Init(&my_motor, &huart2, 1);
+  Control_En(&my_motor,1);
+
+  
   /* 5. 初始化独立的 PC 串口命令行调试控制台，开启 huart3 的首次标准 1 字节中断接收监听 */
   Debug_CLI_Init();
   printf(">>串口调试初始化完成\r\n");
