@@ -131,6 +131,14 @@ void Emm_V5_Reset_Clog_Pro(Emm_V5_Motor *motor);
   */
 void Emm_V5_Modify_Ctrl_Mode(Emm_V5_Motor *motor, bool svF, uint8_t ctrl_mode);
 
+/**
+  * @brief    修改电机细分数
+  * @param    motor     : 电机结构体指针
+  * @param    svF       : 是否存储标志，false为不存储，true为存储
+  * @param    subdivide : 细分数值，范围 1 - 255 (例如：16代表16细分，单圈3200脉冲)
+  */
+void Emm_V5_Modify_Subdivision(Emm_V5_Motor *motor, bool svF, uint8_t subdivide);
+
 
 /* =============================================================================
  *                              回零控制接口

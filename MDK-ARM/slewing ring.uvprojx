@@ -599,6 +599,11 @@
               <FileType>1</FileType>
               <FilePath>..\Emm_V5_stepper\Emm_V5.c</FilePath>
             </File>
+            <File>
+              <FileName>app_stepper_ctrl.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Emm_V5_stepper\app_stepper_ctrl.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

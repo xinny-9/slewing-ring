@@ -5,51 +5,136 @@
 一、文件组成：
   - Emm_V5.h : 驱动库头文件，包含宏定义、系统参数枚举、电机句柄结构体及函数声明。
   - Emm_V5.c : 驱动库源文件，包含所有电机控制协议的封装、阻塞式参数读取及异步帧解析。
+  - example_main.c : 应用集成使用例程，包含初始化、回零、运动控制、异步接收解析等示例代码。
 
 二、编码格式：
   - GB2312 (中文注释，完美兼容 Keil/IAR 等 Windows 下的嵌入式 IDE，无中文乱码)。
 
-三、使用说明：
+三、控制函数详细使用指南：
 
-1. 初始化：
-   在 main.c 中引入头文件：
-   #include "Emm_V5.h"
+-----------------------------------------------------------------------------
+1. 初始化句柄 (Emm_V5_Init)
+-----------------------------------------------------------------------------
+【函数原型】void Emm_V5_Init(Emm_V5_Motor *motor, UART_HandleTypeDef *huart, uint8_t addr);
+【功能说明】初始化电机的软件句柄，绑定控制它的串口外设与总线物理地址。
+【参数说明】
+  - motor : 指向您声明的电机句柄变量的指针。
+  - huart : 电机连接的 STM32 串口句柄指针，例如 `&huart2`。
+  - addr  : 电机在总线上的拨码地址 (1-255)。若为多机并联控制，每台电机的拨码必须唯一。
+【调用示例】
+  Emm_V5_Motor motor1;
+  Emm_V5_Init(&motor1, &huart2, 1);
 
-   实例化电机并初始化：
-   Emm_V5_Motor motor1;
-   Emm_V5_Init(&motor1, &huart2, 1); // 绑定串口2，电机总线地址为1
+-----------------------------------------------------------------------------
+2. 电机使能/关闭 (Emm_V5_En_Control)
+-----------------------------------------------------------------------------
+【函数原型】void Emm_V5_En_Control(Emm_V5_Motor *motor, bool state, bool snF);
+【功能说明】控制电机的线圈加电/断电。使能后电机轴锁定并能够响应运动指令。
+【参数说明】
+  - state : 使能标志。true-加电锁定并启用电机；false-断电释放电机（此时可以用手轻松拧动轴）。
+  - snF   : 多机同步标志。true-命令会缓存，等待广播发送同步命令后多机一起启动；false-命令立即执行。
+【调用示例】
+  Emm_V5_En_Control(&motor1, true, false); // 立即加电锁定电机
 
-2. 使能电机：
-   Emm_V5_En_Control(&motor1, true, false); // 使能电机，不启用同步
+-----------------------------------------------------------------------------
+3. 相对与绝对位置控制 (Emm_V5_Pos_Control)
+-----------------------------------------------------------------------------
+【函数原型】void Emm_V5_Pos_Control(Emm_V5_Motor *motor, uint8_t dir, uint16_t vel, uint8_t acc, uint32_t clk, bool raF, bool snF);
+【功能说明】控制电机旋转到目标位置。支持相对位置（走多少步）与绝对位置（走到哪一步）。
+【参数说明】
+  - dir   : 运动方向。EMM_CW (0) 为顺时针；EMM_CCW (1) 为逆时针。
+  - vel   : 运转的最大转速，单位为 RPM（转/分），范围 0-5000 RPM。
+  - acc   : 启动与停止的加速度。范围 0-255 (0为直接无加减速启动，建议设在 5-50 之间)。
+  - clk   : 目标步进脉冲数。在16细分下，3200个脉冲对应电机旋转一周 (360度)。
+  - raF   : 位置模式选择。
+            * false (相对位置模式) ：当前点为起点，向 dir 方向继续旋转 clk 个脉冲。
+            * true  (绝对位置模式) ：以系统软件零点（开机点或手动设定的零点）为基准，走到 clk 指定的绝对角度上。
+  - snF   : 多机同步标志。true-多机同步启动；false-立即启动。
+【调用示例】
+  // 示例A：相对运动。顺时针以1000RPM，加速度10，向右旋转2圈 (16细分下 3200*2 = 6400 脉冲)
+  Emm_V5_Pos_Control(&motor1, EMM_CW, 1000, 10, 6400, false, false);
+  
+  // 示例B：绝对运动。旋转到绝对零点位置 (clk=0, raF=true)，不管之前在哪，都会自己寻找最短路径回到零点
+  Emm_V5_Pos_Control(&motor1, EMM_CW, 1000, 10, 0, true, false);
 
-3. 运动控制：
-   - 速度模式：
-     Emm_V5_Vel_Control(&motor1, EMM_CW, 1000, 10, false); // 顺时针，1000 RPM，加速度10
-   - 位置模式 (相对运动)：
-     Emm_V5_Pos_Control(&motor1, EMM_CW, 1000, 10, 3200, false, false); // 顺时针，相对运动3200脉冲
-   - 位置模式 (绝对运动)：
-     Emm_V5_Pos_Control(&motor1, EMM_CW, 1000, 10, 0, true, false); // 运动到绝对零点位置
-   - 立即停止：
-     Emm_V5_Stop_Now(&motor1, false);
+-----------------------------------------------------------------------------
+4. 速度控制模式 (Emm_V5_Vel_Control)
+-----------------------------------------------------------------------------
+【函数原型】void Emm_V5_Vel_Control(Emm_V5_Motor *motor, uint8_t dir, uint16_t vel, uint8_t acc, bool snF);
+【功能说明】使电机以恒定的转速持续旋转，除非发送停止命令，否则不会停下。
+【参数说明】
+  - dir/vel/acc/snF : 其物理含义与位置控制函数一致。
+【调用示例】
+  Emm_V5_Vel_Control(&motor1, EMM_CW, 500, 10, false); // 顺时针以500RPM恒速旋转
 
-4. 回零操作：
-   - 触发单圈就近回零：
-     Emm_V5_Origin_Trigger_Return(&motor1, 0, false);
-   - 触发无限位碰撞回零：
-     Emm_V5_Origin_Trigger_Return(&motor1, 2, false);
-   - 修改回零参数 (例如碰撞回零：速度 50RPM，超时 10000ms，检测转速 10RPM，检测电流 300mA，检测时间 100ms)：
-     Emm_V5_Origin_Modify_Params(&motor1, true, 2, EMM_CCW, 50, 10000, 10, 300, 100, false);
+-----------------------------------------------------------------------------
+5. 立即停止运转 (Emm_V5_Stop_Now)
+-----------------------------------------------------------------------------
+【函数原型】void Emm_V5_Stop_Now(Emm_V5_Motor *motor, bool snF);
+【功能说明】使运动中的电机紧急停止，电机线圈依然保持加电锁定状态。
+【调用示例】
+  Emm_V5_Stop_Now(&motor1, false);
 
-5. 状态读取：
-   - 阻塞查询模式 (适用于简单流程控制，会产生几毫秒的阻塞延迟)：
-     if (Emm_V5_Read_Position_Blocking(&motor1)) {
-         float current_angle = motor1.real_pos; // 获取当前角度
-     }
-     if (Emm_V5_Read_Speed_Blocking(&motor1)) {
-         float current_speed = motor1.real_vel; // 获取当前转速 (RPM)
-     }
+---------------------------------------------------------------------
+5.5. 修改电机细分数 (Emm_V5_Modify_Subdivision)
+---------------------------------------------------------------------
+【函数原型】void Emm_V5_Modify_Subdivision(Emm_V5_Motor *motor, bool svF, uint8_t subdivide);
+【功能说明】通过总线指令修改驱动板的细分设定值。
+【参数说明】
+  - svF       : 是否永久存储。true-存入EEPROM，掉电不丢失；false-仅临时生效。
+  - subdivide : 细分数，范围为 1 至 255。例如：
+                * 1  - 单圈 200 脉冲 (1细分)
+                * 16 - 单圈 3200 脉冲 (16细分，最常用)
+                * 32 - 单圈 6400 脉冲 (32细分)
+【注意说明】建议修改细分后延时 100ms 左右，以确保驱动板写入稳定。
+【调用示例】
+  Emm_V5_Modify_Subdivision(&motor1, true, 16); // 设置为16细分并保存至EEPROM
 
-   - 异步非阻塞解析模式 (推荐，适用于高实时性系统)：
-     当您配置了串口的空闲中断 (IDLE) 或 DMA 接收，在接收到完整的一帧数据包后，直接调用：
-     Emm_V5_Parse_Frame(&motor1, rx_buffer, rx_length);
-     解析器会自动校验地址与校验码，并自动解算数据更新到 `motor1.real_pos`, `motor1.real_vel` 等对应的结构体变量中。
+-----------------------------------------------------------------------------
+6. 系统零点重置 (重要控制接口)
+-----------------------------------------------------------------------------
+【接口A：当前位置强制清零 (Emm_V5_Reset_CurPos_To_Zero)】
+  - 函数原型：void Emm_V5_Reset_CurPos_To_Zero(Emm_V5_Motor *motor);
+  - 功能说明：将电机当前的物理位置，强制清零并设为软件上的“绝对位置 0 度点”（清除编码器的累计值点）。
+  - 应用场景：在开机初始化时，或者是机器运行到限位点/原点时，调用该函数将当前位置复位为零，为后续的“绝对位置控制 (raF=true)”设定基准。
+  - 调用示例：Emm_V5_Reset_CurPos_To_Zero(&motor1);
+
+【接口B：设置单圈回零的零点位置 (Emm_V5_Origin_Set_O)】
+  - 函数原型：void Emm_V5_Origin_Set_O(Emm_V5_Motor *motor, bool svF);
+  - 功能说明：配置电机的单圈机械零点（存储在驱动板EEPROM中）。
+  - 参数说明：svF - 是否永久存储。true-存入EEPROM，掉电不丢失；false-仅临时生效。
+  - 应用场景：用在“单圈回零”模式中。
+  - 调用示例：Emm_V5_Origin_Set_O(&motor1, true);
+
+-----------------------------------------------------------------------------
+7. 自动回零参数配置与触发 (Emm_V5_Origin 系列函数)
+-----------------------------------------------------------------------------
+【接口A：修改回零配置参数 (Emm_V5_Origin_Modify_Params)】
+  - 函数原型：void Emm_V5_Origin_Modify_Params(Emm_V5_Motor *motor, bool svF, uint8_t o_mode, uint8_t o_dir, uint16_t o_vel, uint32_t o_tm, uint16_t sl_vel, uint16_t sl_ma, uint16_t sl_ms, bool potF);
+  - 功能说明：配置电机的回零传感器模式、速度和防卡死超时参数。
+  - 参数说明：
+    * svF    : 是否永久存储入EEPROM。
+    * o_mode : 回零模式。
+               0 - 单圈就近回零（以之前设定的零点为准）
+               1 - 单圈方向回零
+               2 - 多圈无限位碰撞回零（堵转检测回零，不需要任何外部行程开关传感器）
+               3 - 多圈有限位开关回零（需要将限位传感器连接在驱动器的接口上）
+    * o_dir  : 回零旋转方向。0-CW (顺时针)，1-CCW (逆时针)。
+    * o_vel  : 回零运转时的速度，单位为 RPM。
+    * o_tm   : 回零动作最大允许执行的超时时间，单位毫秒。超时未达原点会强制标记回零失败。
+    * sl_vel : 无限位碰撞回零模式下，判断“撞墙卡死”的检测转速阈值，单位 RPM。
+    * sl_ma  : 无限位碰撞回零模式下，判断“撞墙卡死”的检测电流阈值，单位 mA。
+    * sl_ms  : 无限位碰撞回零模式下，达到上述条件持续多久时间判断为碰到硬限位，单位毫秒。
+    * potF   : 上电是否自动执行一次回零。
+  - 调用示例（配置多圈无限位碰撞回零）：
+    Emm_V5_Origin_Modify_Params(&motor1, true, 2, EMM_CCW, 60, 10000, 10, 300, 100, false);
+
+【接口B：发送命令触发回零动作 (Emm_V5_Origin_Trigger_Return)】
+  - 函数原型：void Emm_V5_Origin_Trigger_Return(Emm_V5_Motor *motor, uint8_t o_mode, bool snF);
+  - 功能说明：在软件中通过发送总线数据指令，直接触发电机执行回零寻找原点流程。
+  - 调用示例：Emm_V5_Origin_Trigger_Return(&motor1, 2, false); // 触发无限位碰撞回零
+
+【接口C：强制中断回零 (Emm_V5_Origin_Interrupt)】
+  - 函数原型：void Emm_V5_Origin_Interrupt(Emm_V5_Motor *motor);
+  - 功能说明：在回零寻原点过程中，如果遇到紧急情况，调用此函数能够强制中断寻找过程并停止电机。
+  - 调用示例：Emm_V5_Origin_Interrupt(&motor1);

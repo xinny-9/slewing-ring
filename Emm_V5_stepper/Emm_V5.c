@@ -59,6 +59,23 @@ void Emm_V5_En_Control(Emm_V5_Motor *motor, bool state, bool snF)
 }
 
 /**
+  * @brief    修改电机细分数
+  */
+void Emm_V5_Modify_Subdivision(Emm_V5_Motor *motor, bool svF, uint8_t subdivide)
+{
+    uint8_t cmd[16] = {0};
+    
+    cmd[0] = motor->addr;
+    cmd[1] = 0x84;
+    cmd[2] = 0x8A;
+    cmd[3] = svF ? 1 : 0;
+    cmd[4] = subdivide;
+    cmd[5] = 0x6B;
+    
+    Emm_V5_SendCmd(motor, cmd, 6);
+}
+
+/**
   * @brief    速度模式控制
   * @param    dir   : 方向，0为CW，其余值为CCW
   * @param    vel   : 速度，范围 0 - 5000 RPM

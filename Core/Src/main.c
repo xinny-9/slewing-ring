@@ -50,6 +50,13 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+/* 声明步进电机句柄 */
+Emm_V5_Motor stepper;
+
+/* 串口异步接收相关的缓存定义 (假设使用串口2连接电机) */
+#define RX_BUFFER_SIZE  64
+uint8_t g_stepper_rx_buf[RX_BUFFER_SIZE];
+uint8_t g_stepper_rx_len = 0;
 
 /* USER CODE END PV */
 
@@ -109,6 +116,27 @@ int main(void)
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 
+ /* 1. 初始化电机句柄：绑定串口2 (&huart2)，设置电机总线地址为1 */
+    Emm_V5_Init(&stepper, &huart2, 1);
+    
+    /* 2. 确保电机驱动器上电稳定后，使能电机 */
+    HAL_Delay(1000); 
+    Emm_V5_En_Control(&stepper, true, false);
+    HAL_Delay(200);
+
+    /* 3. 阻塞式读取当前电机的状态，验证通信是否正常 */
+    printf(">> motor's initial state...\r\n");
+    if (Emm_V5_Read_Status_Blocking(&stepper))
+    {
+        printf(">> en_state: %d, arrive_state: %d, lock_state: %d\r\n", 
+               stepper.en_state, stepper.arrive_state, stepper.lck_state);
+    }
+    else
+    {
+        printf(">> communication failed.\r\n");
+    }
+
+
 
  /* 初始化总线物理层驱动并挂载回调，同时启动 huart1 的首次 HAL 中断接收监听 */
   Serial_Servo_HAL_Init();
@@ -137,8 +165,17 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-
      Debug_CLI_Process();
+
+ /* 5. 位置控制演示：相对运动 */
+    printf(">> 运动演示：顺时针旋转一圈 (在16细分下发送3200个脉冲，速度1000RPM，加速度5)\r\n");
+    Emm_V5_Pos_Control(&stepper, EMM_CW, 500, 5, 6400, false, false);
+    HAL_Delay(2000); // 等待运动完成
+  printf(">> 运动演示：逆时针旋转一圈 (在16细分下发送3200个脉冲，速度1000RPM，加速度5)\r\n");
+    Emm_V5_Pos_Control(&stepper, EMM_CCW, 500, 5, 6400, false, false);
+    HAL_Delay(2000); // 等待运动完成
+
+
   }
   /* USER CODE END 3 */
 }
