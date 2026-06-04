@@ -116,26 +116,24 @@ int main(void)
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 
- /* 1. 初始化电机句柄：绑定串口2 (&huart2)，设置电机总线地址为1 */
-    Emm_V5_Init(&stepper, &huart2, 1);
-    
-    /* 2. 确保电机驱动器上电稳定后，使能电机 */
-    HAL_Delay(1000); 
-    Emm_V5_En_Control(&stepper, true, false);
-    HAL_Delay(200);
-
-    /* 3. 阻塞式读取当前电机的状态，验证通信是否正常 */
-    printf(">> motor's initial state...\r\n");
-    if (Emm_V5_Read_Status_Blocking(&stepper))
-    {
-        printf(">> en_state: %d, arrive_state: %d, lock_state: %d\r\n", 
-               stepper.en_state, stepper.arrive_state, stepper.lck_state);
-    }
-    else
-    {
-        printf(">> communication failed.\r\n");
-    }
-
+  
+  /* 2. 初始化丝杆电机系统：绑定串口2，电机地址为1 */
+  Stepper_App_Init(&huart2, 1);
+  
+/* 3. 执行上电自动寻找原点 (阻塞查询方式)
+   * 这一步会命令电机低速(40RPM)朝回零方向旋转，检测到撞墙堵转后，自动停机；
+   * 随后自动将此撞墙点标记为 0 坐标点，并反向避让 4mm 作为安全保护区，再次清零作为起始零点。
+   */
+  printf(">> 正在执行丝杆自动碰撞回零寻原点...\r\n");
+  if (Stepper_App_ExecuteHoming())
+  {
+      printf(">> 寻零成功！系统准备就绪。\r\n");
+  }
+  else
+  {
+      printf(">> 寻零失败！请检查机械阻碍或通信线缆。\r\n");
+      // 可以进行相应的错误处理，如锁定系统或发出警报
+  }
 
 
  /* 初始化总线物理层驱动并挂载回调，同时启动 huart1 的首次 HAL 中断接收监听 */
