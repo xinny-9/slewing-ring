@@ -15,7 +15,7 @@
 static uint8_t g_cli_rx_buf[CLI_RX_LEN];
 static uint8_t g_cli_rx_index = 0;
 static volatile bool g_cli_frame_ready = false;
-extern Motor_Control my_motor;   // 声明外部的步进电机控制句柄
+extern Motor_Control stepper_motor;   // 声明外部的步进电机控制句柄
 /* 串口 3 异步中断单字节接收缓冲区 */
 static uint8_t g_cli_rx_temp_byte = 0;
 
@@ -170,36 +170,9 @@ void Debug_CLI_Process(void)
                 printf(">> 参数错误! 格式应为: lock <id>\r\n");
             }
         }
-       else if (strcmp(cmd, "motor_pos") == 0) {
-            char *p1 = strtok(NULL, " "); // 速度 Speed
-            char *p2 = strtok(NULL, " "); // 加速度 Accelerate
-            char *p3 = strtok(NULL, " "); // 目标位置 Where
-            
-            if (p1 && p2 && p3) {
-                uint16_t speed = (uint16_t)atoi(p1);
-                uint8_t accelerate = (uint8_t)atoi(p2);
-                uint32_t where = (uint32_t)strtoul(p3, NULL, 10);
-                
-                // 1. 更新结构体当前时间为系统最新 Tick，以通过盲区时间校验
-                my_motor.Current_Time = HAL_GetTick();
-                
-                // 2. 将定点状态置 1，以通过 Motor_Want_Position 内部的 if(Motor->POINT_State==1) 校验
-                my_motor.POINT_State = 1;
-                
-                // 3. 调用库函数进行位置控制
-                uint8_t ret = Motor_Want_Position(&my_motor, speed, accelerate, where);
-                
-                if (ret == 1) {
-                    printf(">> [CLI执行]: 步进电机移动指令已发送。速度: %u, 加速度: %u, 目标位置: %lu\r\n", speed, accelerate, where);
-                } else {
-                    printf(">> [CLI警告]: 未满足时间间隔(500ms限制)或电机未就绪，控制未执行！\r\n");
-                }
-            } else {
-                printf(">> 参数错误! 格式应为: motor_pos <speed> <accelerate> <where>\r\n");
-            }
-        }
+       
         else {
-           printf(">> 未知指令! 仅支持格式: pos/read/stop/free/lock/motor_pos\r\n");
+           printf(">> 未知指令! 仅支持格式: pos/read/stop/free/lock\r\n");
         }
     }
 

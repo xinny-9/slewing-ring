@@ -15,13 +15,11 @@ compiling serial_servo_debug_cli.c...
                       printf(">> [回读失败] 舵机未响应！请排查供电或ID�?(r_pos:%d, r_vin:%d, r_temp:%d)\r\n", r1, r2, r3);
 ..\serial_servo_f103_drv\serial_servo_debug_cli.c(148): warning:  #870-D: invalid multibyte character sequence
                   printf(">> [CLI执行]: 紧急制�? 舵机 %d\r\n", id);
-..\serial_servo_f103_drv\serial_servo_debug_cli.c(195): warning:  #870-D: invalid multibyte character sequence
-                      printf(">> [CLI警告]: 未满足时间间�?(500ms限制)或电机未就绪，控制未执行！\r\n");
-..\serial_servo_f103_drv\serial_servo_debug_cli.c(202): warning:  #870-D: invalid multibyte character sequence
+..\serial_servo_f103_drv\serial_servo_debug_cli.c(175): warning:  #870-D: invalid multibyte character sequence
              printf(">> 未知指令! 仅支持格�?: pos/read/stop/free/lock/motor_pos\r\n");
-..\serial_servo_f103_drv\serial_servo_debug_cli.c: 9 warnings, 0 errors
+..\serial_servo_f103_drv\serial_servo_debug_cli.c: 8 warnings, 0 errors
 linking...
-Program Size: Code=13372 RO-data=1628 RW-data=32 ZI-data=1464  
+Program Size: Code=12820 RO-data=1360 RW-data=32 ZI-data=1432  
 FromELF: creating hex file...
-"slewing ring\slewing ring.axf" - 0 Error(s), 9 Warning(s).
-Build Time Elapsed:  00:00:01
+"slewing ring\slewing ring.axf" - 0 Error(s), 8 Warning(s).
+Build Time Elapsed:  00:00:00

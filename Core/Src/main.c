@@ -28,8 +28,7 @@
 #include "serial_servo.h"
 #include "serial_servo_debug_cli.h"
 #include "serial_servo_hal.h"
-#include "Control.h"
-#include "Data.h"
+#include "Emm_V5.h"
 
 /* USER CODE END Includes */
 
@@ -51,7 +50,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-  Motor_Control my_motor;//实例化步进电机结构体
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -91,7 +90,7 @@ int main(void)
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
-  /* USER CODEd BEGIN Init */
+  /* USER CODE BEGIN Init */
 
   /* USER CODE END Init */
 
@@ -108,30 +107,26 @@ int main(void)
   MX_USART2_UART_Init();
   MX_USART3_UART_Init();
   MX_TIM3_Init();
-
-  
   /* USER CODE BEGIN 2 */
 
 
- /* 4. 初始化总线物理层驱动并挂载回调，同时启动 huart1 的首次 HAL 中断接收监听 */
+ /* 初始化总线物理层驱动并挂载回调，同时启动 huart1 的首次 HAL 中断接收监听 */
   Serial_Servo_HAL_Init();
 
-  /* 5. 初始化独立的 PC 串口命令行调试控制台，开启 huart3 的首次标准 1 字节中断接收监听 */
+
+
+  /* 初始化独立的 PC 串口命令行调试控制台，开启 huart3 的首次标准 1 字节中断接收监听 */
   Debug_CLI_Init();
   printf(">>串口调试初始化完成\r\n");
 
   uint32_t last_action_tick = 0;
   uint8_t toggle_pos_flag = 0;
 
-
-  // 参数说明: 结构体指针, 串口句柄, 电机总线地址
-  Control_Init(&my_motor, &huart2, 1);
-
-
   
   /*  开启 TIM3 的 10ms 定时中断服务，挂载遥测 */
   HAL_TIM_Base_Start_IT(&htim3);
   
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
