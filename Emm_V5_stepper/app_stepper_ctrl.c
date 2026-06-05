@@ -55,6 +55,7 @@ uint8_t Stepper_App_ExecuteHoming(void)
     HAL_Delay(100);
     
     /* 2. 发送指令触发碰撞回零寻原点 (模式2) */
+    g_app_stepper.origin_state = 0xFF;
     Emm_V5_Origin_Trigger_Return(&g_app_stepper, 2, false);
     
     /* 3. 循环等待并校验电机返回的回零状态 */
@@ -95,7 +96,7 @@ uint8_t Stepper_App_ExecuteHoming(void)
         }
         
         /* 回零失败处理 */
-        if (g_app_stepper.origin_state == 2)
+        if (g_app_stepper.origin_state == 0)
         {
             g_system_state = STEPPER_STATE_ERROR;
             return 0;

@@ -52,6 +52,7 @@ void Stepper_Demo_Process(void)
     HAL_Delay(100);
     
     printf(">> 触发回零动作...\r\n");
+    stepper.origin_state = 0xFF;
     Emm_V5_Origin_Trigger_Return(&stepper, 2, false);
     
     /* 阻塞等待回零成功 (也可以结合中断非阻塞检测 origin_state) */
@@ -68,7 +69,7 @@ void Stepper_Demo_Process(void)
             printf(">> 回零成功！当前位置已被设为零点。\r\n");
             break;
         }
-        else if (stepper.origin_state == 2)
+        else if (stepper.origin_state == 0)
         {
             printf(">> 回零失败！\r\n");
             break;
