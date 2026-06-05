@@ -37,7 +37,7 @@ void Stepper_App_Init(UART_HandleTypeDef *huart, uint8_t addr)
      *   - 判定时间：100 ms (反应更灵敏) (以上卡死条件持续200ms则判定到位)
      *   - 上电不自启：false
      */
-    Emm_V5_Origin_Modify_Params(&g_app_stepper, true, 2, EMM_CCW, 20, 12000, 8, 200, 100, false);
+    Emm_V5_Origin_Modify_Params(&g_app_stepper, true, 2, EMM_CCW, 100, 12000, 8, 200, 100, false);
     
     /* 5. 稍微延时，确保电机配置保存完毕 */
     HAL_Delay(150);
@@ -59,26 +59,15 @@ uint8_t Stepper_App_ExecuteHoming(void)
     
     /* 3. 循环等待并校验电机返回的回零状态 */
     uint32_t start_time = HAL_GetTick();
-    uint8_t rx_buf[8] = {0};
     
     while (1)
     {
         HAL_Delay(250); /* 每隔250ms发送一次状态查询 */
         
-        /* 强制清理可能残存的溢出错误，发送回零状态 S_ORG 查询指令 */
-        __HAL_UART_CLEAR_OREFLAG(g_app_stepper.huart);
-        HAL_UART_AbortReceive(g_app_stepper.huart);
-        
         Emm_V5_Read_Sys_Params(&g_app_stepper, S_ORG);
         
-        /* 阻塞等待 4 字节的返回包：[地址] [0x3B] [回零状态值] [0x6B] */
-        if (HAL_UART_Receive(g_app_stepper.huart, rx_buf, 4, 100) == HAL_OK)
-        {
-            if (rx_buf[0] == g_app_stepper.addr && rx_buf[1] == 0x3B)
-            {
-                g_app_stepper.origin_state = rx_buf[2]; /* 0: 回零中/未开始, 1: 成功, 2: 失败 */
-            }
-        }
+        /* 延时 50ms 等待后台 DMA 硬件自动接收并由串口空闲中断完成解析 */
+        HAL_Delay(50);
         
         /* 回零成功处理 */
         if (g_app_stepper.origin_state == 1)
