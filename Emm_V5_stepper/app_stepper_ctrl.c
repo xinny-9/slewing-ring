@@ -37,7 +37,7 @@ void Stepper_App_Init(UART_HandleTypeDef *huart, uint8_t addr)
      *   - 判定时间：100 ms (反应更灵敏) (以上卡死条件持续200ms则判定到位)
      *   - 上电不自启：false
      */
-    Emm_V5_Origin_Modify_Params(&g_app_stepper, true, 2, EMM_CCW, 20, 12000, 8, 200, 100, false);
+    Emm_V5_Origin_Modify_Params(&g_app_stepper, true, HOMING_MODE, HOMING_DIR, HOMING_SPEED_RPM, HOMING_TIMEOUT_MS, HOMING_SL_VEL_RPM, HOMING_SL_CUR_MA, HOMING_SL_TIME_MS, HOMING_AUTO_START);
     
     /* 5. 稍微延时，确保电机配置保存完毕 */
     HAL_Delay(150);
