@@ -1,528 +1,1056 @@
 /**
+
  * *****************************************************************************
+
  * @file    Emm_V5.c
- * @brief   Emm_V5.0 é—­ç¯æ­¥è¿›ç”µæœºé©±åŠ¨åº“å®ç° (åŸºäº STM32 HAL åº“)
+
+ * @brief   Emm_V5.0 ±Õ»·²½½øµç»úÇı¶¯¿âÊµÏÖ (»ùÓÚ STM32 HAL ¿â)
+
  * *****************************************************************************
+
  */
 
+
+
 #include "Emm_V5.h"
+
 #include <string.h>
 
+
+
 /**
-  * @brief    å‘é€æŒ‡ä»¤çš„åº•å±‚ç‰©ç†å®ç° (è°ƒç”¨ HAL_UART_Transmit)
+
+  * @brief    ·¢ËÍÖ¸ÁîµÄµ×²ãÎïÀíÊµÏÖ (µ÷ÓÃ HAL_UART_Transmit)
+
   */
+
 static void Emm_V5_SendCmd(Emm_V5_Motor *motor, uint8_t *cmd, uint8_t len)
+
 {
+
     if (motor != NULL && motor->huart != NULL)
+
     {
+
         HAL_UART_Transmit(motor->huart, cmd, len, 100);
+
     }
+
 }
 
+
+
 /**
-  * @brief    åˆå§‹åŒ–ç”µæœºå¥æŸ„
+
+  * @brief    ³õÊ¼»¯µç»ú¾ä±ú
+
   */
+
 void Emm_V5_Init(Emm_V5_Motor *motor, UART_HandleTypeDef *huart, uint8_t addr)
+
 {
+
     if (motor != NULL)
+
     {
+
         motor->addr = addr;
+
         motor->huart = huart;
+
         motor->en_state = 0;
+
         motor->arrive_state = 0;
+
         motor->lck_state = 0;
+
         motor->origin_state = 0xFF;
+
         motor->real_pos = 0.0f;
+
         motor->real_vel = 0.0f;
+
         motor->err_pos = 0.0f;
+
         motor->target_pos = 0.0f;
+
     }
+
 }
 
+
+
 /**
-  * @brief    ç”µæœºä½¿èƒ½æ§åˆ¶
-  * @param    state : ä½¿ä½¿èƒ½çŠ¶æ€ï¼Œtrueä¸ºä½¿èƒ½ç”µæœºï¼Œfalseä¸ºå…³é—­ç”µæœº
-  * @param    snF   : å¤šæœºåŒæ­¥æ ‡å¿—ï¼Œfalseä¸ºä¸å¯ç”¨ï¼Œtrueä¸ºå¯ç”¨
+
+  * @brief    µç»úÊ¹ÄÜ¿ØÖÆ
+
+  * @param    state : Ê¹Ê¹ÄÜ×´Ì¬£¬trueÎªÊ¹ÄÜµç»ú£¬falseÎª¹Ø±Õµç»ú
+
+  * @param    snF   : ¶à»úÍ¬²½±êÖ¾£¬falseÎª²»ÆôÓÃ£¬trueÎªÆôÓÃ
+
   */
+
 void Emm_V5_En_Control(Emm_V5_Motor *motor, bool state, bool snF)
+
 {
+
     uint8_t cmd[16] = {0};
+
     
-    cmd[0] = motor->addr;                 /* åœ°å€ */
-    cmd[1] = 0xF3;                        /* åŠŸèƒ½ç  */
-    cmd[2] = 0xAB;                        /* è¾…åŠ©ç  */
-    cmd[3] = (uint8_t)state;              /* ä½¿èƒ½çŠ¶æ€ï¼š1-ä½¿èƒ½ï¼Œ0-å¤±èƒ½ */
-    cmd[4] = snF ? 1 : 0;                 /* å¤šæœºåŒæ­¥æ ‡å¿— */
-    cmd[5] = 0x6B;                        /* æ ¡éªŒå­—èŠ‚ */
+
+    cmd[0] = motor->addr;                 /* µØÖ· */
+
+    cmd[1] = 0xF3;                        /* ¹¦ÄÜÂë */
+
+    cmd[2] = 0xAB;                        /* ¸¨ÖúÂë */
+
+    cmd[3] = (uint8_t)state;              /* Ê¹ÄÜ×´Ì¬£º1-Ê¹ÄÜ£¬0-Ê§ÄÜ */
+
+    cmd[4] = snF ? 1 : 0;                 /* ¶à»úÍ¬²½±êÖ¾ */
+
+    cmd[5] = 0x6B;                        /* Ğ£Ñé×Ö½Ú */
+
     
+
     Emm_V5_SendCmd(motor, cmd, 6);
+
 }
 
+
+
 /**
-  * @brief    ä¿®æ”¹ç”µæœºç»†åˆ†æ•°
+
+  * @brief    ĞŞ¸Äµç»úÏ¸·ÖÊı
+
   */
+
 void Emm_V5_Modify_Subdivision(Emm_V5_Motor *motor, bool svF, uint8_t subdivide)
+
 {
+
     uint8_t cmd[16] = {0};
+
     
+
     cmd[0] = motor->addr;
+
     cmd[1] = 0x84;
+
     cmd[2] = 0x8A;
+
     cmd[3] = svF ? 1 : 0;
+
     cmd[4] = subdivide;
+
     cmd[5] = 0x6B;
+
     
+
     Emm_V5_SendCmd(motor, cmd, 6);
+
 }
 
+
+
 /**
-  * @brief    é€Ÿåº¦æ¨¡å¼æ§åˆ¶
-  * @param    dir   : æ–¹å‘ï¼Œ0ä¸ºCWï¼Œå…¶ä½™å€¼ä¸ºCCW
-  * @param    vel   : é€Ÿåº¦ï¼ŒèŒƒå›´ 0 - 5000 RPM
-  * @param    acc   : åŠ é€Ÿåº¦ï¼ŒèŒƒå›´ 0 - 255 (0ä¸ºç›´æ¥å¯åŠ¨)
-  * @param    snF   : å¤šæœºåŒæ­¥æ ‡å¿—ï¼Œfalseä¸ºä¸å¯ç”¨ï¼Œtrueä¸ºå¯ç”¨
+
+  * @brief    ËÙ¶ÈÄ£Ê½¿ØÖÆ
+
+  * @param    dir   : ·½Ïò£¬0ÎªCW£¬ÆäÓàÖµÎªCCW
+
+  * @param    vel   : ËÙ¶È£¬·¶Î§ 0 - 5000 RPM
+
+  * @param    acc   : ¼ÓËÙ¶È£¬·¶Î§ 0 - 255 (0ÎªÖ±½ÓÆô¶¯)
+
+  * @param    snF   : ¶à»úÍ¬²½±êÖ¾£¬falseÎª²»ÆôÓÃ£¬trueÎªÆôÓÃ
+
   */
+
 void Emm_V5_Vel_Control(Emm_V5_Motor *motor, uint8_t dir, uint16_t vel, uint8_t acc, bool snF)
+
 {
+
     uint8_t cmd[16] = {0};
 
-    cmd[0] = motor->addr;                 /* åœ°å€ */
-    cmd[1] = 0xF6;                        /* åŠŸèƒ½ç  */
-    cmd[2] = dir;                         /* æ–¹å‘ */
-    cmd[3] = (uint8_t)(vel >> 8);         /* é€Ÿåº¦é«˜8ä½ */
-    cmd[4] = (uint8_t)(vel >> 0);         /* é€Ÿåº¦ä½8ä½ */
-    cmd[5] = acc;                         /* åŠ é€Ÿåº¦ */
-    cmd[6] = snF ? 1 : 0;                 /* å¤šæœºåŒæ­¥æ ‡å¿— */
-    cmd[7] = 0x6B;                        /* æ ¡éªŒå­—èŠ‚ */
+
+
+    cmd[0] = motor->addr;                 /* µØÖ· */
+
+    cmd[1] = 0xF6;                        /* ¹¦ÄÜÂë */
+
+    cmd[2] = dir;                         /* ·½Ïò */
+
+    cmd[3] = (uint8_t)(vel >> 8);         /* ËÙ¶È¸ß8Î» */
+
+    cmd[4] = (uint8_t)(vel >> 0);         /* ËÙ¶ÈµÍ8Î» */
+
+    cmd[5] = acc;                         /* ¼ÓËÙ¶È */
+
+    cmd[6] = snF ? 1 : 0;                 /* ¶à»úÍ¬²½±êÖ¾ */
+
+    cmd[7] = 0x6B;                        /* Ğ£Ñé×Ö½Ú */
+
     
+
     Emm_V5_SendCmd(motor, cmd, 8);
+
 }
 
+
+
 /**
-  * @brief    ä½ç½®æ¨¡å¼æ§åˆ¶
-  * @param    dir   : æ–¹å‘ï¼Œ0ä¸ºCWï¼Œå…¶ä½™å€¼ä¸ºCCW
-  * @param    vel   : é€Ÿåº¦(RPM)
-  * @param    acc   : åŠ é€Ÿåº¦
-  * @param    clk   : è„‰å†²æ•°
-  * @param    raF   : ç›¸å¯¹/ç»å¯¹æ ‡å¿—ï¼Œfalseä¸ºç›¸å¯¹ï¼Œtrueä¸ºç»å¯¹
-  * @param    snF   : å¤šæœºåŒæ­¥æ ‡å¿—
+
+  * @brief    Î»ÖÃÄ£Ê½¿ØÖÆ
+
+  * @param    dir   : ·½Ïò£¬0ÎªCW£¬ÆäÓàÖµÎªCCW
+
+  * @param    vel   : ËÙ¶È(RPM)
+
+  * @param    acc   : ¼ÓËÙ¶È
+
+  * @param    clk   : Âö³åÊı
+
+  * @param    raF   : Ïà¶Ô/¾ø¶Ô±êÖ¾£¬falseÎªÏà¶Ô£¬trueÎª¾ø¶Ô
+
+  * @param    snF   : ¶à»úÍ¬²½±êÖ¾
+
   */
+
 void Emm_V5_Pos_Control(Emm_V5_Motor *motor, uint8_t dir, uint16_t vel, uint8_t acc, uint32_t clk, bool raF, bool snF)
+
 {
+
     uint8_t cmd[16] = {0};
 
-    cmd[0]  = motor->addr;                /* åœ°å€ */
-    cmd[1]  = 0xFD;                       /* åŠŸèƒ½ç  */
-    cmd[2]  = dir;                        /* æ–¹å‘ */
-    cmd[3]  = (uint8_t)(vel >> 8);        /* é€Ÿåº¦é«˜8ä½ */
-    cmd[4]  = (uint8_t)(vel >> 0);        /* é€Ÿåº¦ä½8ä½ */
-    cmd[5]  = acc;                        /* åŠ é€Ÿåº¦ */
-    cmd[6]  = (uint8_t)(clk >> 24);       /* è„‰å†²æ•° bit24-31 */
-    cmd[7]  = (uint8_t)(clk >> 16);       /* è„‰å†²æ•° bit16-23 */
-    cmd[8]  = (uint8_t)(clk >> 8);        /* è„‰å†²æ•° bit8-15 */
-    cmd[9]  = (uint8_t)(clk >> 0);        /* è„‰å†²æ•° bit0-7 */
-    cmd[10] = raF ? 1 : 0;                /* ç›¸å¯¹/ç»å¯¹æ ‡å¿— */
-    cmd[11] = snF ? 1 : 0;                /* å¤šæœºåŒæ­¥æ ‡å¿— */
-    cmd[12] = 0x6B;                       /* æ ¡éªŒå­—èŠ‚ */
+
+
+    cmd[0]  = motor->addr;                /* µØÖ· */
+
+    cmd[1]  = 0xFD;                       /* ¹¦ÄÜÂë */
+
+    cmd[2]  = dir;                        /* ·½Ïò */
+
+    cmd[3]  = (uint8_t)(vel >> 8);        /* ËÙ¶È¸ß8Î» */
+
+    cmd[4]  = (uint8_t)(vel >> 0);        /* ËÙ¶ÈµÍ8Î» */
+
+    cmd[5]  = acc;                        /* ¼ÓËÙ¶È */
+
+    cmd[6]  = (uint8_t)(clk >> 24);       /* Âö³åÊı bit24-31 */
+
+    cmd[7]  = (uint8_t)(clk >> 16);       /* Âö³åÊı bit16-23 */
+
+    cmd[8]  = (uint8_t)(clk >> 8);        /* Âö³åÊı bit8-15 */
+
+    cmd[9]  = (uint8_t)(clk >> 0);        /* Âö³åÊı bit0-7 */
+
+    cmd[10] = raF ? 1 : 0;                /* Ïà¶Ô/¾ø¶Ô±êÖ¾ */
+
+    cmd[11] = snF ? 1 : 0;                /* ¶à»úÍ¬²½±êÖ¾ */
+
+    cmd[12] = 0x6B;                       /* Ğ£Ñé×Ö½Ú */
+
     
+
     Emm_V5_SendCmd(motor, cmd, 13);
+
 }
 
+
+
 /**
-  * @brief    è®©ç”µæœºç«‹å³åœæ­¢è¿åŠ¨
+
+  * @brief    ÈÃµç»úÁ¢¼´Í£Ö¹ÔË¶¯
+
   */
+
 void Emm_V5_Stop_Now(Emm_V5_Motor *motor, bool snF)
+
 {
+
     uint8_t cmd[16] = {0};
+
     
+
     cmd[0] = motor->addr;
+
     cmd[1] = 0xFE;
+
     cmd[2] = 0x98;
+
     cmd[3] = snF ? 1 : 0;
+
     cmd[4] = 0x6B;
+
     
+
     Emm_V5_SendCmd(motor, cmd, 5);
+
 }
 
+
+
 /**
-  * @brief    è§¦å‘å¤šæœºåŒæ­¥å¼€å§‹è¿åŠ¨
+
+  * @brief    ´¥·¢¶à»úÍ¬²½¿ªÊ¼ÔË¶¯
+
   */
+
 void Emm_V5_Synchronous_motion(Emm_V5_Motor *motor)
+
 {
+
     uint8_t cmd[16] = {0};
+
     
+
     cmd[0] = motor->addr;
+
     cmd[1] = 0xFF;
+
     cmd[2] = 0x66;
+
     cmd[3] = 0x6B;
+
     
+
     Emm_V5_SendCmd(motor, cmd, 4);
+
 }
 
+
+
 /**
-  * @brief    å°†å½“å‰ä½ç½®æ¸…é›¶
+
+  * @brief    ½«µ±Ç°Î»ÖÃÇåÁã
+
   */
+
 void Emm_V5_Reset_CurPos_To_Zero(Emm_V5_Motor *motor)
+
 {
+
     uint8_t cmd[16] = {0};
+
     
+
     cmd[0] = motor->addr;
+
     cmd[1] = 0x0A;
+
     cmd[2] = 0x6D;
+
     cmd[3] = 0x6B;
+
     
+
     Emm_V5_SendCmd(motor, cmd, 4);
+
 }
 
+
+
 /**
-  * @brief    è§£é™¤å µè½¬ä¿æŠ¤
+
+  * @brief    ½â³ı¶Â×ª±£»¤
+
   */
+
 void Emm_V5_Reset_Clog_Pro(Emm_V5_Motor *motor)
+
 {
+
     uint8_t cmd[16] = {0};
+
     
+
     cmd[0] = motor->addr;
+
     cmd[1] = 0x0E;
+
     cmd[2] = 0x52;
+
     cmd[3] = 0x6B;
+
     
+
     Emm_V5_SendCmd(motor, cmd, 4);
+
 }
 
+
+
 /**
-  * @brief    ä¿®æ”¹å¼€ç¯/é—­ç¯æ§åˆ¶æ¨¡å¼
+
+  * @brief    ĞŞ¸Ä¿ª»·/±Õ»·¿ØÖÆÄ£Ê½
+
   */
+
 void Emm_V5_Modify_Ctrl_Mode(Emm_V5_Motor *motor, bool svF, uint8_t ctrl_mode)
+
 {
+
     uint8_t cmd[16] = {0};
+
     
+
     cmd[0] = motor->addr;
+
     cmd[1] = 0x46;
+
     cmd[2] = 0x69;
+
     cmd[3] = svF ? 1 : 0;
+
     cmd[4] = ctrl_mode;
+
     cmd[5] = 0x6B;
+
     
+
     Emm_V5_SendCmd(motor, cmd, 6);
+
 }
 
+
+
 /**
-  * @brief    è®¾ç½®å•åœˆå›é›¶çš„é›¶ç‚¹ä½ç½®
+
+  * @brief    ÉèÖÃµ¥È¦»ØÁãµÄÁãµãÎ»ÖÃ
+
   */
+
 void Emm_V5_Origin_Set_O(Emm_V5_Motor *motor, bool svF)
+
 {
+
     uint8_t cmd[16] = {0};
+
     
+
     cmd[0] = motor->addr;
+
     cmd[1] = 0x93;
+
     cmd[2] = 0x88;
+
     cmd[3] = svF ? 1 : 0;
+
     cmd[4] = 0x6B;
+
     
+
     Emm_V5_SendCmd(motor, cmd, 5);
+
 }
 
+
+
 /**
-  * @brief    ä¿®æ”¹å›é›¶å‚æ•°
+
+  * @brief    ĞŞ¸Ä»ØÁã²ÎÊı
+
   */
+
 void Emm_V5_Origin_Modify_Params(Emm_V5_Motor *motor, bool svF, uint8_t o_mode, uint8_t o_dir, uint16_t o_vel, uint32_t o_tm, uint16_t sl_vel, uint16_t sl_ma, uint16_t sl_ms, bool potF)
+
 {
+
     uint8_t cmd[32] = {0};
+
     
+
     cmd[0] = motor->addr;
+
     cmd[1] = 0x4C;
+
     cmd[2] = 0xAE;
+
     cmd[3] = svF ? 1 : 0;
+
     cmd[4] = o_mode;
+
     cmd[5] = o_dir;
+
     cmd[6] = (uint8_t)(o_vel >> 8);
+
     cmd[7] = (uint8_t)(o_vel >> 0);
+
     cmd[8] = (uint8_t)(o_tm >> 24);
+
     cmd[9] = (uint8_t)(o_tm >> 16);
+
     cmd[10] = (uint8_t)(o_tm >> 8);
+
     cmd[11] = (uint8_t)(o_tm >> 0);
+
     cmd[12] = (uint8_t)(sl_vel >> 8);
+
     cmd[13] = (uint8_t)(sl_vel >> 0);
+
     cmd[14] = (uint8_t)(sl_ma >> 8);
+
     cmd[15] = (uint8_t)(sl_ma >> 0);
+
     cmd[16] = (uint8_t)(sl_ms >> 8);
+
     cmd[17] = (uint8_t)(sl_ms >> 0);
+
     cmd[18] = potF ? 1 : 0;
+
     cmd[19] = 0x6B;
+
     
+
     Emm_V5_SendCmd(motor, cmd, 20);
+
 }
 
+
+
 /**
-  * @brief    å‘é€å‘½ä»¤è§¦å‘å›é›¶
+
+  * @brief    ·¢ËÍÃüÁî´¥·¢»ØÁã
+
   */
+
 void Emm_V5_Origin_Trigger_Return(Emm_V5_Motor *motor, uint8_t o_mode, bool snF)
+
 {
+
     uint8_t cmd[16] = {0};
+
     
+
     cmd[0] = motor->addr;
+
     cmd[1] = 0x9A;
+
     cmd[2] = o_mode;
+
     cmd[3] = snF ? 1 : 0;
+
     cmd[4] = 0x6B;
+
     
+
     Emm_V5_SendCmd(motor, cmd, 5);
+
 }
 
+
+
 /**
-  * @brief    å¼ºåˆ¶ä¸­æ–­å¹¶é€€å‡ºå›é›¶
+
+  * @brief    Ç¿ÖÆÖĞ¶Ï²¢ÍË³ö»ØÁã
+
   */
+
 void Emm_V5_Origin_Interrupt(Emm_V5_Motor *motor)
+
 {
+
     uint8_t cmd[16] = {0};
+
     
+
     cmd[0] = motor->addr;
+
     cmd[1] = 0x9C;
+
     cmd[2] = 0x48;
+
     cmd[3] = 0x6B;
+
     
+
     Emm_V5_SendCmd(motor, cmd, 4);
+
 }
 
+
+
 /**
-  * @brief    å‘ç”µæœºå‘é€è¯»å–ç³»ç»Ÿå‚æ•°çš„æŒ‡ä»¤ (éé˜»å¡)
+
+  * @brief    Ïòµç»ú·¢ËÍ¶ÁÈ¡ÏµÍ³²ÎÊıµÄÖ¸Áî (·Ç×èÈû)
+
   */
+
 void Emm_V5_Read_Sys_Params(Emm_V5_Motor *motor, SysParams_t s)
+
 {
+
     uint8_t i = 0;
+
     uint8_t cmd[16] = {0};
+
     
+
     cmd[i++] = motor->addr;
 
+
+
     switch(s)
+
     {
+
         case S_VER  : cmd[i++] = 0x1F; break;
+
         case S_RL   : cmd[i++] = 0x20; break;
+
         case S_PID  : cmd[i++] = 0x21; break;
+
         case S_VBUS : cmd[i++] = 0x24; break;
+
         case S_CPHA : cmd[i++] = 0x27; break;
+
         case S_ENCL : cmd[i++] = 0x31; break;
+
         case S_TPOS : cmd[i++] = 0x33; break;
+
         case S_VEL  : cmd[i++] = 0x35; break;
+
         case S_CPOS : cmd[i++] = 0x36; break;
+
         case S_PERR : cmd[i++] = 0x37; break;
+
         case S_FLAG : cmd[i++] = 0x3A; break;
+
         case S_ORG  : cmd[i++] = 0x3B; break;
+
         case S_Conf : cmd[i++] = 0x42; cmd[i++] = 0x6C; break;
+
         case S_State: cmd[i++] = 0x43; cmd[i++] = 0x7A; break;
+
         default: return;
+
     }
+
+
 
     cmd[i++] = 0x6B;
+
     
+
     Emm_V5_SendCmd(motor, cmd, i);
+
 }
 
+
+
 /**
-  * @brief    é˜»å¡å¼è¯»å–ç”µæœºå½“å‰å®æ—¶è§’åº¦ (å‘é€æŒ‡ä»¤å¹¶åŒæ­¥ç­‰å¾…æ¥æ”¶ï¼Œæ›´æ–° real_pos)
+
+  * @brief    ×èÈûÊ½¶ÁÈ¡µç»úµ±Ç°ÊµÊ±½Ç¶È (·¢ËÍÖ¸Áî²¢Í¬²½µÈ´ı½ÓÊÕ£¬¸üĞÂ real_pos)
+
   */
+
 bool Emm_V5_Read_Position_Blocking(Emm_V5_Motor *motor)
+
 {
+
     uint8_t rx_buf[8] = {0};
+
     
+
     if (motor == NULL || motor->huart == NULL) return false;
+
     
-    /* æ¸…ç†å¯èƒ½æ®‹ç•™çš„æ¥æ”¶ç¼“å†² */
+
+    /* ÇåÀí¿ÉÄÜ²ĞÁôµÄ½ÓÊÕ»º³å */
+
     __HAL_UART_CLEAR_OREFLAG(motor->huart);
+
     HAL_UART_AbortReceive(motor->huart);
+
     
-    /* å‘é€è¯»å–å®æ—¶ä½ç½®æŒ‡ä»¤ */
+
+    /* ·¢ËÍ¶ÁÈ¡ÊµÊ±Î»ÖÃÖ¸Áî */
+
     Emm_V5_Read_Sys_Params(motor, S_CPOS);
+
     
-    /* é˜»å¡å¼ç­‰å¾…æ¥æ”¶8ä¸ªå­—èŠ‚çš„è¿”å›æ•°æ® */
+
+    /* ×èÈûÊ½µÈ´ı½ÓÊÕ8¸ö×Ö½ÚµÄ·µ»ØÊı¾İ */
+
     if (HAL_UART_Receive(motor->huart, rx_buf, 8, EMM_BLOCKING_TIMEOUT) == HAL_OK)
+
     {
-        /* æ ¡éªŒè¿”å›æ•°æ®çš„å¸§å¤´éƒ¨ */
+
+        /* Ğ£Ñé·µ»ØÊı¾İµÄÖ¡Í·²¿ */
+
         if (rx_buf[0] == motor->addr && rx_buf[1] == 0x36)
+
         {
+
             uint32_t pos_val = (uint32_t)(
+
                                 ((uint32_t)rx_buf[3] << 24) |
+
                                 ((uint32_t)rx_buf[4] << 16) |
+
                                 ((uint32_t)rx_buf[5] << 8)  |
+
                                 ((uint32_t)rx_buf[6] << 0)
+
                                );
+
             float angle = (float)pos_val * 360.0f / 65536.0f;
+
             if (rx_buf[2]) { angle = -angle; }
+
             motor->real_pos = angle;
+
             return true;
+
         }
+
     }
+
     
+
     return false;
+
 }
 
+
+
 /**
-  * @brief    é˜»å¡å¼è¯»å–ç”µæœºå½“å‰å®æ—¶è½¬é€Ÿ (å‘é€æŒ‡ä»¤å¹¶åŒæ­¥ç­‰å¾…æ¥æ”¶ï¼Œæ›´æ–° real_vel)
+
+  * @brief    ×èÈûÊ½¶ÁÈ¡µç»úµ±Ç°ÊµÊ±×ªËÙ (·¢ËÍÖ¸Áî²¢Í¬²½µÈ´ı½ÓÊÕ£¬¸üĞÂ real_vel)
+
   */
+
 bool Emm_V5_Read_Speed_Blocking(Emm_V5_Motor *motor)
+
 {
+
     uint8_t rx_buf[8] = {0};
+
     
+
     if (motor == NULL || motor->huart == NULL) return false;
+
     
-    /* æ¸…ç†æ¥æ”¶ç¼“å†² */
+
+    /* ÇåÀí½ÓÊÕ»º³å */
+
     __HAL_UART_CLEAR_OREFLAG(motor->huart);
+
     HAL_UART_AbortReceive(motor->huart);
+
     
-    /* å‘é€è¯»å–è½¬é€ŸæŒ‡ä»¤ */
+
+    /* ·¢ËÍ¶ÁÈ¡×ªËÙÖ¸Áî */
+
     Emm_V5_Read_Sys_Params(motor, S_VEL);
+
     
-    /* é˜»å¡å¼ç­‰å¾…æ¥æ”¶6ä¸ªå­—èŠ‚çš„è¿”å›æ•°æ® */
+
+    /* ×èÈûÊ½µÈ´ı½ÓÊÕ6¸ö×Ö½ÚµÄ·µ»ØÊı¾İ */
+
     if (HAL_UART_Receive(motor->huart, rx_buf, 6, EMM_BLOCKING_TIMEOUT) == HAL_OK)
+
     {
-        /* æ ¡éªŒè¿”å›æ•°æ®å¸§å¤´ */
+
+        /* Ğ£Ñé·µ»ØÊı¾İÖ¡Í· */
+
         if (rx_buf[0] == motor->addr && rx_buf[1] == 0x35)
+
         {
+
             uint16_t vel_val = (uint16_t)(
+
                                 ((uint16_t)rx_buf[3] << 8) |
+
                                 ((uint16_t)rx_buf[4] << 0)
+
                                );
+
             float speed = (float)vel_val;
+
             if (rx_buf[2]) { speed = -speed; }
+
             motor->real_vel = speed;
+
             return true;
+
         }
+
     }
+
     
+
     return false;
+
 }
 
+
+
 /**
-  * @brief    é˜»å¡å¼è¯»å–ç”µæœºå½“å‰ä½¿èƒ½/åˆ°ä½/å µè½¬çŠ¶æ€
+
+  * @brief    ×èÈûÊ½¶ÁÈ¡µç»úµ±Ç°Ê¹ÄÜ/µ½Î»/¶Â×ª×´Ì¬
+
   */
+
 bool Emm_V5_Read_Status_Blocking(Emm_V5_Motor *motor)
+
 {
+
     uint8_t rx_buf[8] = {0};
+
     
+
     if (motor == NULL || motor->huart == NULL) return false;
+
     
-    /* æ¸…ç†æ¥æ”¶ç¼“å†² */
+
+    /* ÇåÀí½ÓÊÕ»º³å */
+
     __HAL_UART_CLEAR_OREFLAG(motor->huart);
+
     HAL_UART_AbortReceive(motor->huart);
+
     
-    /* å‘é€è¯»å–ä½¿èƒ½/åˆ°ä½/å µè½¬æ ‡å¿—æŒ‡ä»¤ */
+
+    /* ·¢ËÍ¶ÁÈ¡Ê¹ÄÜ/µ½Î»/¶Â×ª±êÖ¾Ö¸Áî */
+
     Emm_V5_Read_Sys_Params(motor, S_FLAG);
+
     
-    /* é˜»å¡å¼ç­‰å¾…æ¥æ”¶4ä¸ªå­—èŠ‚çš„è¿”å›æ•°æ® */
+
+    /* ×èÈûÊ½µÈ´ı½ÓÊÕ4¸ö×Ö½ÚµÄ·µ»ØÊı¾İ */
+
     if (HAL_UART_Receive(motor->huart, rx_buf, 4, EMM_BLOCKING_TIMEOUT) == HAL_OK)
+
     {
-        /* æ ¡éªŒè¿”å›æ•°æ®å¸§å¤´ */
+
+        /* Ğ£Ñé·µ»ØÊı¾İÖ¡Í· */
+
         if (rx_buf[0] == motor->addr && rx_buf[1] == 0x3A)
+
         {
+
             motor->en_state     = (rx_buf[2] & 0x01) ? 1 : 0;
+
             motor->arrive_state = (rx_buf[2] & 0x02) ? 1 : 0;
+
             motor->lck_state    = (rx_buf[2] & 0x04) ? 1 : 0;
+
             return true;
+
         }
+
     }
+
     
+
     return false;
+
 }
 
+
+
 /**
-  * @brief    ç»Ÿä¸€çš„å¸§è§£ææ¥å£ (éé˜»å¡ï¼Œé€‚ç”¨äºç©ºé—²ä¸­æ–­/DMAæ–­å¸§æ¥æ”¶åçš„æ•°æ®å¤„ç†)
+
+  * @brief    Í³Ò»µÄÖ¡½âÎö½Ó¿Ú (·Ç×èÈû£¬ÊÊÓÃÓÚ¿ÕÏĞÖĞ¶Ï/DMA¶ÏÖ¡½ÓÊÕºóµÄÊı¾İ´¦Àí)
+
   */
+
 bool Emm_V5_Parse_Frame(Emm_V5_Motor *motor, uint8_t *rx_buf, uint8_t rx_len)
+
 {
+
     if (motor == NULL || rx_buf == NULL || rx_len < 4) return false;
+
     
-    /* æ£€æŸ¥æ˜¯å¦æ˜¯æœ¬ç”µæœºå›å¤çš„æ•°æ® */
+
+    /* ¼ì²éÊÇ·ñÊÇ±¾µç»ú»Ø¸´µÄÊı¾İ */
+
     if (rx_buf[0] != motor->addr) return false;
+
     
-    /* æ ¡éªŒæœ«å°¾çš„å›ºå®šæ ¡éªŒç  */
+
+    /* Ğ£ÑéÄ©Î²µÄ¹Ì¶¨Ğ£ÑéÂë */
+
     if (rx_buf[rx_len - 1] != 0x6B) return false;
+
     
-    /* æ ¹æ®åŠŸèƒ½ç è§£æä¸åŒç±»å‹çš„å›å¤ */
+
+    /* ¸ù¾İ¹¦ÄÜÂë½âÎö²»Í¬ÀàĞÍµÄ»Ø¸´ */
+
     switch (rx_buf[1])
+
     {
-        case 0x36: /* å®æ—¶ä½ç½®å›å¤å¸§ (é•¿åº¦é€šå¸¸ä¸º 8 å­—èŠ‚) */
+
+        case 0x36: /* ÊµÊ±Î»ÖÃ»Ø¸´Ö¡ (³¤¶ÈÍ¨³£Îª 8 ×Ö½Ú) */
+
             if (rx_len >= 8)
+
             {
+
                 uint32_t pos_val = (uint32_t)(
+
                                     ((uint32_t)rx_buf[3] << 24) |
+
                                     ((uint32_t)rx_buf[4] << 16) |
+
                                     ((uint32_t)rx_buf[5] << 8)  |
+
                                     ((uint32_t)rx_buf[6] << 0)
+
                                    );
+
                 float angle = (float)pos_val * 360.0f / 65536.0f;
+
                 if (rx_buf[2]) { angle = -angle; }
+
                 motor->real_pos = angle;
+
                 return true;
+
             }
+
             break;
+
             
-        case 0x35: /* å®æ—¶é€Ÿåº¦å›å¤å¸§ (é•¿åº¦é€šå¸¸ä¸º 6 å­—èŠ‚) */
+
+        case 0x35: /* ÊµÊ±ËÙ¶È»Ø¸´Ö¡ (³¤¶ÈÍ¨³£Îª 6 ×Ö½Ú) */
+
             if (rx_len >= 6)
+
             {
+
                 uint16_t vel_val = (uint16_t)(
+
                                     ((uint16_t)rx_buf[3] << 8) |
+
                                     ((uint16_t)rx_buf[4] << 0)
+
                                    );
+
                 float speed = (float)vel_val;
+
                 if (rx_buf[2]) { speed = -speed; }
+
                 motor->real_vel = speed;
+
                 return true;
+
             }
+
             break;
+
             
-        case 0x3A: /* æ ‡å¿—ä½çŠ¶æ€å›å¤å¸§ (é•¿åº¦é€šå¸¸ä¸º 4 å­—èŠ‚) */
+
+        case 0x3A: /* ±êÖ¾Î»×´Ì¬»Ø¸´Ö¡ (³¤¶ÈÍ¨³£Îª 4 ×Ö½Ú) */
+
             if (rx_len >= 4)
+
             {
+
                 motor->en_state     = (rx_buf[2] & 0x01) ? 1 : 0;
+
                 motor->arrive_state = (rx_buf[2] & 0x02) ? 1 : 0;
+
                 motor->lck_state    = (rx_buf[2] & 0x04) ? 1 : 0;
+
                 return true;
+
             }
+
             break;
+
             
-        case 0x3B: /* å›é›¶çŠ¶æ€å›å¤å¸§ (é•¿åº¦é€šå¸¸ä¸º 4 å­—èŠ‚) */
+
+        case 0x3B: /* »ØÁã×´Ì¬»Ø¸´Ö¡ (³¤¶ÈÍ¨³£Îª 4 ×Ö½Ú) */
+
             if (rx_len >= 4)
+
             {
-                motor->origin_state = rx_buf[2]; /* 0: å›é›¶ä¸­/æœªå¼€å§‹, 1: æˆåŠŸ, 2: å¤±è´¥ */
+
+                motor->origin_state = rx_buf[2]; /* 0: »ØÁãÖĞ/Î´¿ªÊ¼, 1: ³É¹¦, 2: Ê§°Ü */
+
                 return true;
+
             }
+
             break;
+
             
-        case 0x33: /* ç›®æ ‡ä½ç½®å›å¤å¸§ (é•¿åº¦ä¸º 8 å­—èŠ‚) */
+
+        case 0x33: /* Ä¿±êÎ»ÖÃ»Ø¸´Ö¡ (³¤¶ÈÎª 8 ×Ö½Ú) */
+
             if (rx_len >= 8)
+
             {
+
                 uint32_t pos_val = (uint32_t)(
+
                                     ((uint32_t)rx_buf[3] << 24) |
+
                                     ((uint32_t)rx_buf[4] << 16) |
+
                                     ((uint32_t)rx_buf[5] << 8)  |
+
                                     ((uint32_t)rx_buf[6] << 0)
+
                                    );
+
                 float angle = (float)pos_val * 360.0f / 65536.0f;
+
                 if (rx_buf[2]) { angle = -angle; }
+
                 motor->target_pos = angle;
+
                 return true;
+
             }
+
             break;
+
             
-        case 0x37: /* ä½ç½®è¯¯å·®å›å¤å¸§ (é•¿åº¦ä¸º 8 å­—èŠ‚) */
+
+        case 0x37: /* Î»ÖÃÎó²î»Ø¸´Ö¡ (³¤¶ÈÎª 8 ×Ö½Ú) */
+
             if (rx_len >= 8)
+
             {
+
                 uint32_t pos_val = (uint32_t)(
+
                                     ((uint32_t)rx_buf[3] << 24) |
+
                                     ((uint32_t)rx_buf[4] << 16) |
+
                                     ((uint32_t)rx_buf[5] << 8)  |
+
                                     ((uint32_t)rx_buf[6] << 0)
+
                                    );
+
                 float angle = (float)pos_val * 360.0f / 65536.0f;
+
                 if (rx_buf[2]) { angle = -angle; }
+
                 motor->err_pos = angle;
+
                 return true;
+
             }
+
             break;
+
             
+
         default:
+
             break;
+
     }
+
     
+
     return false;
+
 }
+
