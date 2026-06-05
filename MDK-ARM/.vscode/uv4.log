@@ -1,2 +1,4 @@
 Load "slewing ring\\slewing ring.axf" 
-Erase Done.Programming Done.Verify OK.Flash Load finished at 12:51:52
+Erase Done.Programming Failed!Cannot access Memory
+Error: Flash Download failed  -  "Cortex-M3"
+Flash Load finished at 17:24:25
