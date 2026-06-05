@@ -225,3 +225,4 @@ bool Emm_V5_Read_Status_Blocking(Emm_V5_Motor *motor);
 bool Emm_V5_Parse_Frame(Emm_V5_Motor *motor, uint8_t *rx_buf, uint8_t rx_len);
 
 #endif /* __EMM_V5_H */
+

@@ -30,6 +30,7 @@
 #include "serial_servo_debug_cli.h"
 #include "serial_servo_hal.h"
 #include "Emm_V5.h"
+#include "app_stepper_ctrl.h"
 
 /* USER CODE END Includes */
 
