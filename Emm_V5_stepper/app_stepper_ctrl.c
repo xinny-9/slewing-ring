@@ -69,6 +69,7 @@ uint8_t Stepper_App_ExecuteHoming(void)
         
         /* 延时 50ms 等待后台 DMA 硬件自动接收并由串口空闲中断完成解析 */
         HAL_Delay(50);
+        printf(">> Homing poll, current state = 0x%02X\r\n", g_app_stepper.origin_state);
         
         /* 回零成功处理 */
         if (g_app_stepper.origin_state == 1)
@@ -157,6 +158,13 @@ void Stepper_App_EmergencyStop(void)
   */
 void Stepper_App_Parse(uint8_t *rx_buf, uint8_t rx_len)
 {
+    printf(">> Stepper Rx [%d]:", rx_len);
+    for (uint8_t i = 0; i < rx_len; i++)
+    {
+        printf(" %02X", rx_buf[i]);
+    }
+    printf("\r\n");
+    
     Emm_V5_Parse_Frame(&g_app_stepper, rx_buf, rx_len);
 }
 
