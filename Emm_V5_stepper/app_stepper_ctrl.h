@@ -4,11 +4,11 @@
 
  * @file    app_stepper_ctrl.h
 
- * @brief   ˿�˲������Ӧ�ò����ģ�� (���� Emm_V5 ������)
+ * @brief   丝杆步进电机应用层控制模块 (基于 Emm_V5 驱动库)
 
- * @details ��װ����������(mm)������Ļ��㡢�г�����λ��ȫ�������ϵ��Զ���ײ����
+ * @details 封装了物理距离(mm)与脉冲的换算、行程软限位安全保护、上电自动碰撞回零
 
- *          �Լ�ϵͳ״̬����Ϊ�ϲ�ҵ���ṩ�����㡢��ȫ�Ŀ��ƽӿڡ�
+ *          以及系统状态机，为上层业务提供极其简便、安全的控制接口。
 
  * *****************************************************************************
 
@@ -28,52 +28,53 @@
 
 /* =============================================================================
 
- *                                ��е�ṹ���ò���
+ *                                机械结构配置参数
 
  * =============================================================================
 
  */
 
-#define SCREW_LEAD_MM         8.0f    /* ˿�˵��̣������תһȦ������ǰ�� 8mm */
+#define SCREW_LEAD_MM         0.96f    /* 丝杆导程：电机旋转一圈，滑块前移 8mm */
 
-#define PULSE_PER_ROUND       3200.0f /* �����Ȧ������ (1.8�㲽���ǣ�16ϸ����Ϊ 3200 ����) */
-#define STEPPER_SUBDIVISION   16      /* ���ϸ�֣�16 ϸ�֣��� 3200 ����/Ȧ�� */
+#define PULSE_PER_ROUND       3200.0f /* 电机单圈脉冲数 (1.8°步进角，16细分下为 3200 脉冲) */
+#define STEPPER_SUBDIVISION   16      /* 电机细分：16 细分（即 3200 脉冲/圈） */
 
-#define SCREW_MAX_TRAVEL_MM   200.0f  /* ˿��ģ������ȫ�����г� (��λ: mm) */
+#define SCREW_MAX_TRAVEL_MM   3600.0f  /* 丝杆模组的最大安全物理行程 (单位: mm) */
 
-#define SAFE_CLEARANCE_MM     4.0f    /* ��ײ����ɹ��󣬷��򵹳����õġ���ȫ�����Ƭ������ */
+#define SAFE_CLEARANCE_MM     4.0f    /* 碰撞回零成功后，反向倒车避让的“安全缓冲垫片”距离 */
+
 
 
 
 /* =============================================================================
 
- *                                �����������
+ *                                回零参数配置
 
  * =============================================================================
 
  */
 
-#define HOMING_MODE           2       /* ����ģʽ��2-����λ��ײ��ת���� */
+#define HOMING_MODE           2       /* 回零模式：2-无限位碰撞堵转回零 */
 
-#define HOMING_DIR            EMM_CCW /* ���㷽��EMM_CCW (��ʱ��) �� EMM_CW (˳ʱ��) */
+#define HOMING_DIR            EMM_CCW /* 回零方向：EMM_CCW (逆时针) 或 EMM_CW (顺时针) */
 
-#define HOMING_SPEED_RPM      20      /* ��������ת�� (RPM) */
+#define HOMING_SPEED_RPM      500      /* 回零运行转速 (RPM) */
 
-#define HOMING_TIMEOUT_MS     12000   /* ���㳬ʱʱ�� (ms) */
+#define HOMING_TIMEOUT_MS     100000   /* 回零超时时间 (ms) */
 
-#define HOMING_SL_VEL_RPM     8       /* ��ת����ٶ���ֵ (RPM) */
+#define HOMING_SL_VEL_RPM     10       /* 堵转检测速度阈值 (RPM) */
 
-#define HOMING_SL_CUR_MA      200     /* ��ת��������ֵ (mA) */
+#define HOMING_SL_CUR_MA      300     /* 堵转检测电流阈值 (mA) */
 
-#define HOMING_SL_TIME_MS     100     /* ��ת�ж�����ʱ�� (ms) */
+#define HOMING_SL_TIME_MS     100     /* 堵转判定持续时间 (ms) */
 
-#define HOMING_AUTO_START     false   /* �ϵ��Ƿ��Զ�ִ�л��� */
+#define HOMING_AUTO_START     false   /* 上电是否自动执行回零 */
 
 
 
 /* =============================================================================
 
- *                                ϵͳ״̬������
+ *                                系统状态机定义
 
  * =============================================================================
 
@@ -81,13 +82,13 @@
 
 typedef enum {
 
-    STEPPER_STATE_UNINIT = 0, /* δ��ʼ�� */
+    STEPPER_STATE_UNINIT = 0, /* 未初始化 */
 
-    STEPPER_STATE_HOMING,     /* ����ִ����ײ���� */
+    STEPPER_STATE_HOMING,     /* 正在执行碰撞回零 */
 
-    STEPPER_STATE_READY,      /* ����ɹ���������������λ�ÿ���״̬ */
+    STEPPER_STATE_READY,      /* 回零成功，处于正常绝对位置控制状态 */
 
-    STEPPER_STATE_ERROR       /* ����ͨ�Ŵ������㳬ʱ */
+    STEPPER_STATE_ERROR       /* 发生通信错误或回零超时 */
 
 } StepperSysState_t;
 
@@ -95,7 +96,7 @@ typedef enum {
 
 /* =============================================================================
 
- *                              �ϲ�Ӧ�ò�API�ӿ�
+ *                              上层应用层API接口
 
  * =============================================================================
 
@@ -105,11 +106,11 @@ typedef enum {
 
 /**
 
-  * @brief    Ӧ�ò�˿�˵��ϵͳ��ʼ��
+  * @brief    应用层丝杆电机系统初始化
 
-  * @param    huart : ����󶨵� HAL ���ھ��ָ�� (�� &huart2)
+  * @param    huart : 电机绑定的 HAL 串口句柄指针 (如 &huart2)
 
-  * @param    addr  : ��������߲����ַ (Ĭ��һ��Ϊ 1)
+  * @param    addr  : 电机的总线拨码地址 (默认一般为 1)
 
   */
 
@@ -119,9 +120,9 @@ void Stepper_App_Init(UART_HandleTypeDef *huart, uint8_t addr);
 
 /**
 
-  * @brief    ִ���ϵ���ײ�Զ�Ѱԭ������ (������ѯ��ʽ)
+  * @brief    执行上电碰撞自动寻原点流程 (阻塞查询方式)
 
-  * @return   uint8_t : 1-����ɹ������궨��ɣ�0-���㳬ʱ��������
+  * @return   uint8_t : 1-回零成功且零点标定完成；0-回零超时或发生错误
 
   */
 
@@ -131,13 +132,13 @@ uint8_t Stepper_App_ExecuteHoming(void);
 
 /**
 
-  * @brief    ���ƻ����ƶ���˿���г̵ľ�������λ�� (������λ����)
+  * @brief    控制滑块移动到丝杆行程的绝对物理位置 (带软限位保护)
 
-  * @param    position_mm : Ŀ���������λ�� (��λ: mm����Χ 0.0 �� SCREW_MAX_TRAVEL_MM)
+  * @param    position_mm : 目标绝对物理位置 (单位: mm，范围 0.0 至 SCREW_MAX_TRAVEL_MM)
 
-  * @param    speed_rpm   : �����ת������ٶ� (RPM�������� 500-2000 RPM ֮��)
+  * @param    speed_rpm   : 电机运转的最大速度 (RPM，建议在 500-2000 RPM 之间)
 
-  * @return   uint8_t     : 1-ָ��Ϸ����ѷ��ͣ�0-����������λ���������ܾ�ִ��
+  * @return   uint8_t     : 1-指令合法并已发送；0-参数超出限位保护，被拒绝执行
 
   */
 
@@ -147,7 +148,7 @@ uint8_t Stepper_App_MoveToPosition(float position_mm, uint16_t speed_rpm);
 
 /**
 
-  * @brief    ����ֹͣ������˶�
+  * @brief    紧急停止电机的运动
 
   */
 
@@ -157,11 +158,11 @@ void Stepper_App_EmergencyStop(void);
 
 /**
 
-  * @brief    �ڴ����жϻ�DMA��֡ʱ���õ����ݽ����ӿ� (����Ӧ�ò�)
+  * @brief    在串口中断或DMA断帧时调用的数据解析接口 (面向应用层)
 
-  * @param    rx_buf : ���ڽ��յ������ݻ�����
+  * @param    rx_buf : 串口接收到的数据缓冲区
 
-  * @param    rx_len : ���ݳ���
+  * @param    rx_len : 数据长度
 
   */
 
@@ -171,21 +172,26 @@ void Stepper_App_Parse(uint8_t *rx_buf, uint8_t rx_len);
 
 /**
 
-  * @brief    ��ȡ��ǰ���������������������
+  * @brief    获取当前电机的软件绝对物理坐标
 
-  * @return   float : ��ǰλ�� (mm)
+  * @return   float : 当前位置 (mm)
 
   */
 
 float Stepper_App_GetCurrentPosition(void);
 
+/**
+  * @brief    发送异步读取当前角度/位置命令（非阻塞触发）
+  */
+void Stepper_App_TriggerPositionRead(void);
+
 
 
 /**
 
-  * @brief    ��ȡ��ǰ˿��ϵͳ����������״̬
+  * @brief    获取当前丝杆系统所处的运行状态
 
-  * @return   StepperSysState_t : ϵͳ״̬��״̬
+  * @return   StepperSysState_t : 系统状态机状态
 
   */
 

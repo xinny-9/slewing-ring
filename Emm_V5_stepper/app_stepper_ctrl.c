@@ -349,22 +349,19 @@ void Stepper_App_Parse(uint8_t *rx_buf, uint8_t rx_len)
   */
 
 float Stepper_App_GetCurrentPosition(void)
-
 {
+    /* 彻底废除阻塞读取，直接返回内存中已更新好的物理位置值 */
+    float position = (g_app_stepper.real_pos / 360.0f) * SCREW_LEAD_MM;
+    return position;
+}
 
-    /* 阻塞式读取当前绝对角度，成功则计算并转换为毫米 */
-
-    if (Emm_V5_Read_Position_Blocking(&g_app_stepper))
-
-    {
-
-        /* 角度转换为毫米公式: (当前绝对角度 / 360.0f) * 丝杆导程 */
-
-        float position = (g_app_stepper.real_pos / 360.0f) * SCREW_LEAD_MM;
-
-        return position;
-
-    }
+/**
+  * @brief    发送异步读取当前位置命令（非阻塞触发）
+  */
+void Stepper_App_TriggerPositionRead(void)
+{
+    Emm_V5_Read_Sys_Params(&g_app_stepper, S_CPOS);
+}
 
     
 
