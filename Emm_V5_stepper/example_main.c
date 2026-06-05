@@ -10,6 +10,7 @@
 #include "main.h"
 #include "usart.h"
 #include "Emm_V5.h"
+#include "app_stepper_ctrl.h"
 #include <stdio.h>
 
 /* 声明步进电机句柄 */
@@ -48,7 +49,7 @@ void Stepper_Demo_Process(void)
     /* 4. 修改回零参数，并触发无限位碰撞回零动作 */
     printf(">> 正在配置碰撞回零参数...\r\n");
     /* 参数: 句柄, 存储, 模式2(碰撞回零), 方向CCW, 回零速50RPM, 超时10s, 碰撞检测速10RPM, 电流300mA, 时间100ms, 上电不自动触发 */
-    Emm_V5_Origin_Modify_Params(&stepper, true, 2, EMM_CCW, 50, 10000, 10, 300, 100, false);
+    Emm_V5_Origin_Modify_Params(&stepper, true, HOMING_MODE, HOMING_DIR, HOMING_SPEED_RPM, HOMING_TIMEOUT_MS, HOMING_SL_VEL_RPM, HOMING_SL_CUR_MA, HOMING_SL_TIME_MS, HOMING_AUTO_START);
     HAL_Delay(100);
     
     printf(">> 触发回零动作...\r\n");

@@ -47,7 +47,7 @@ typedef struct {
     uint8_t en_state;              /* 使能状态：0-失能，1-使能 */
     uint8_t arrive_state;          /* 到位状态：0-未到位，1-到位 */
     uint8_t lck_state;             /* 堵转状态：0-正常，1-堵转 */
-    uint8_t origin_state;          /* 回零状态：0-未回零/正在回零，1-已完成回零且成功，2-回零失败 */
+    uint8_t origin_state;          /* 回零状态：0-回零失败，1-回零成功，2-正在回零中，0xFF-初始值 */
     
     float real_pos;                /* 电机实时位置角度 (单位: 度) */
     float real_vel;                /* 电机实时转速 (单位: RPM) */
