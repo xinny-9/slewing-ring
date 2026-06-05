@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "dma.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
@@ -57,6 +58,13 @@ Emm_V5_Motor stepper;
 #define RX_BUFFER_SIZE  64
 uint8_t g_stepper_rx_buf[RX_BUFFER_SIZE];
 uint8_t g_stepper_rx_len = 0;
+
+
+
+/* 串口异步接收缓存 (使用 huart2 连接步进电机) */
+#define STEPPER_RX_BUF_SIZE  64
+uint8_t g_stepper_rx_buffer[STEPPER_RX_BUF_SIZE];
+uint8_t g_stepper_rx_length = 0;
 
 /* USER CODE END PV */
 
@@ -110,29 +118,45 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   MX_USART3_UART_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 
+  // 此函数内部会自动将电机的撞墙寻零速度设为温和的 20 RPM，检测电流设为 200 mA
+  Stepper_App_Init(&huart2, 1); 
   
-  /* 2. 初始化丝杆电机系统：绑定串口2，电机地址为1 */
-  Stepper_App_Init(&huart2, 1);
+  //【核心启动】开启 DMA 循环接收，并使能空闲中断监听
+  // 启动 DMA 接收，将 huart2 收到的数据自动搬运到全局变量 g_stepper_rx_buffer 中
+  HAL_UART_Receive_DMA(&huart2, g_stepper_rx_buffer, STEPPER_RX_BUF_SIZE);
   
-/* 3. 执行上电自动寻找原点 (阻塞查询方式)
-   * 这一步会命令电机低速(40RPM)朝回零方向旋转，检测到撞墙堵转后，自动停机；
-   * 随后自动将此撞墙点标记为 0 坐标点，并反向避让 4mm 作为安全保护区，再次清零作为起始零点。
-   */
-  printf(">> 正在执行丝杆自动碰撞回零寻原点...\r\n");
-  if (Stepper_App_ExecuteHoming())
+  // 开启 huart2 的串口空闲中断 (IDLE)
+  __HAL_UART_ENABLE_IT(&huart2, UART_IT_IDLE);
+
+  // 独立执行寻零 (找0点) 标定流程
+  printf(">> 启动系统，准备执行上电寻零...\r\n");
+  
+  // 3.1 调用寻零函数，滑块会慢速朝逆时针方向撞击硬限位
+  uint8_t homing_result = Stepper_App_ExecuteHoming();
+  
+  // 3.2 判断刚才寻零的执行结果
+  if (homing_result == 1)
   {
-      printf(">> 寻零成功！系统准备就绪。\r\n");
+      // 成功撞墙，并完成了 4mm 的安全退让以及 0 毫米的起点位置标定
+      printf(">> 寻零标定成功！系统状态转为 READY，准备进入主工作循环。\r\n");
   }
   else
   {
-      printf(">> 寻零失败！请检查机械阻碍或通信线缆。\r\n");
-      // 可以进行相应的错误处理，如锁定系统或发出警报
+      // 回零超过 15 秒未撞墙（超时）或发生串口通信失败
+      printf(">> 寻零失败！发生通信故障或机械卡死，系统挂起保护。\r\n");
+      
+      // 闪烁报警灯以示故障，禁止系统继续运转
+      while(1) 
+      {
+          HAL_Delay(200);
+      }
   }
 
 
@@ -165,14 +189,26 @@ int main(void)
 
      Debug_CLI_Process();
 
- /* 5. 位置控制演示：相对运动 */
-    printf(">> 运动演示：顺时针旋转一圈 (在16细分下发送3200个脉冲，速度1000RPM，加速度5)\r\n");
-    Emm_V5_Pos_Control(&stepper, EMM_CW, 500, 5, 6400, false, false);
-    HAL_Delay(2000); // 等待运动完成
-  printf(">> 运动演示：逆时针旋转一圈 (在16细分下发送3200个脉冲，速度1000RPM，加速度5)\r\n");
-    Emm_V5_Pos_Control(&stepper, EMM_CCW, 500, 5, 6400, false, false);
-    HAL_Delay(2000); // 等待运动完成
-
+    /* 
+       * 示例 A：控制滑块以 1000 RPM 速度，运动到绝对坐标 80.0mm 位置 
+       */
+      printf(">> 正在前往 80.0mm 位置...\r\n");
+      Stepper_App_MoveToPosition(80.0f, 1000);
+      HAL_Delay(5000); // 延时 5 秒等待运动到达并驻留
+      /* 
+       * 示例 B：控制滑块以 1200 RPM 速度，继续前进到绝对坐标 150.0mm 位置 
+       */
+      printf(">> 正在前往 150.0mm 位置...\r\n");
+      Stepper_App_MoveToPosition(150.0f, 1200);
+      HAL_Delay(6000); // 延时 6 秒
+      /* 
+       * 示例 C：【优雅地回到 0 点】
+       * 因为上电时已经做过撞墙寻零了，此处直接输入 0.0f 绝对距离即可。
+       * 滑块会以 1000 RPM 的工作速度快速、丝滑地直接滑回 0mm 处，绝对不会发生撞墙。
+       */
+      printf(">> 任务结束，快速返回 0mm 零点位置（无撞击）...\r\n");
+      Stepper_App_MoveToPosition(0.0f, 1000);
+      HAL_Delay(8000); // 延时 8 秒等待其回到起点，开始下一轮循环
 
   }
   /* USER CODE END 3 */
@@ -239,12 +275,30 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   * @note   在此处极度优雅、对称地分发处理来自不同串口设备的数据包，零侵入 stm32f1xx_it.c！
   */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-    /* 1. 处理来自串口 1 (总线舵机) 的回传接收字节数据 */
+{   if (huart->Instance == huart1.Instance)
+  {
+    // 处理来自串口 1 (总线舵机) 的回传接收字节数据 */
     Serial_Servo_RxCallback(huart);
     
-    /* 2. 处理来自串口 2 (PC 调试控制台) 的英文字符命令字节数据 */
-    Debug_CLI_RxCallback(huart);
+  }
+    
+    // 判断数据是否来自于与电机连接的串口2
+    if (huart->Instance == huart2.Instance)
+    {
+        /* 
+         * 【异步解析机制说明】
+         * 当您在后台（例如利用串口空闲中断 IDLE，或者单字节状态机）接收到了完整的一帧电机回复包，
+         * 并存放在 g_stepper_rx_buffer 中，长度为 g_stepper_rx_length 时，
+         * 直接调用该接口。它会自动解算该回复数据包，并无延迟地刷新电机句柄里的 real_pos 等状态。
+         */
+        Stepper_App_Parse(g_stepper_rx_buffer, g_stepper_rx_length);
+    }
+
+    if (huart->Instance == huart3.Instance)
+    {
+      Debug_CLI_RxCallback(huart);
+    }
+
 }
 /* USER CODE END 4 */
 

@@ -163,6 +163,14 @@ void Stepper_App_EmergencyStop(void)
 }
 
 /**
+  * @brief    在串口中断或DMA断帧时调用的数据解析接口 (面向应用层)
+  */
+void Stepper_App_Parse(uint8_t *rx_buf, uint8_t rx_len)
+{
+    Emm_V5_Parse_Frame(&g_app_stepper, rx_buf, rx_len);
+}
+
+/**
   * @brief    获取当前电机的绝对物理坐标 (单位: mm)
   */
 float Stepper_App_GetCurrentPosition(void)

@@ -64,6 +64,13 @@ uint8_t Stepper_App_MoveToPosition(float position_mm, uint16_t speed_rpm);
 void Stepper_App_EmergencyStop(void);
 
 /**
+  * @brief    在串口中断或DMA断帧时调用的数据解析接口 (面向应用层)
+  * @param    rx_buf : 串口接收到的数据缓冲区
+  * @param    rx_len : 数据长度
+  */
+void Stepper_App_Parse(uint8_t *rx_buf, uint8_t rx_len);
+
+/**
   * @brief    获取当前电机的软件绝对物理坐标
   * @return   float : 当前位置 (mm)
   */

@@ -46,7 +46,7 @@ extern "C" {
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
-
+#define STEPPER_RX_BUF_SIZE  64 // 全局共享的步进电机接收缓冲区大小
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/
