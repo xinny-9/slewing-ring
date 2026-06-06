@@ -100,382 +100,224 @@ void Stepper_App_Init(UART_HandleTypeDef *huart, uint8_t addr)
 
   */
 
+
 uint8_t Stepper_App_ExecuteHoming(void)
-
 {
-
     g_system_state = STEPPER_STATE_HOMING;
-
     
-
-    /* 1. 确保电机已使能加电 */
-
+    /* 1. 确认使能 */
     Emm_V5_En_Control(&g_app_stepper, true, false);
-
     HAL_Delay(100);
-
     
-
-    /* 2. 发送指令触发碰撞回零寻原点 (模式2) */
-
+    /* 2. 触发回零 (模式2) */
     g_app_stepper.origin_state = 0xFF;
-
     Emm_V5_Origin_Trigger_Return(&g_app_stepper, 2, false);
-
     
-
-    /* 3. 循环等待并校验电机返回的回零状态 */
-
+    /* 3. 循环等待回零状态 */
     uint32_t start_time = HAL_GetTick();
-
     
-
     while (1)
-
     {
-
-        HAL_Delay(250); /* 每隔250ms发送一次状态查询 */
-
+        HAL_Delay(250); /* 250ms 查询一次 */
         
-
         Emm_V5_Read_Sys_Params(&g_app_stepper, S_ORG);
-
         
-
-        /* 延时 50ms 等待后台 DMA 硬件自动接收并由串口空闲中断完成解析 */
-
         HAL_Delay(50);
-
         printf(">> Homing poll, current state = 0x%02X\r\n", g_app_stepper.origin_state);
-
         
-
-        /* 回零成功处理 */
-
+        /* 成功 */
         if (g_app_stepper.origin_state != 0xFF && (g_app_stepper.origin_state & 0x04) == 0)
-
         {
-
-            /* A. 成功撞墙，将此当前物理卡死位置标记为软件坐标绝对 0 点 (零度) */
-
             Emm_V5_Reset_CurPos_To_Zero(&g_app_stepper);
-
             HAL_Delay(100);
-
             
-
-            /* B. 为了防止滑块死死咬在物理挡板上导致后续运动卡死，
-
-             *    必须立刻朝反方向（CW）前进一段安全避让距离（例如 4mm）
-
-             *    4mm 对应的脉冲换算：(4.0f / 8.0f) * 3200 = 1600 脉冲
-
-             */
-
             uint32_t back_pulses = (uint32_t)((SAFE_CLEARANCE_MM / SCREW_LEAD_MM) * PULSE_PER_ROUND);
-
             Emm_V5_Pos_Control(&g_app_stepper, EMM_CW, 500, 10, back_pulses, false, false);
-
-            
-
-            /* 等待反向避让动作执行完毕 */
-
             HAL_Delay(800); 
-
             
-
-            /* C. 再次将此安全位置强制复位清零作为后续业务运动的起点 0 坐标点 */
-
             Emm_V5_Reset_CurPos_To_Zero(&g_app_stepper);
-
             HAL_Delay(100);
-
             
-
             g_system_state = STEPPER_STATE_READY;
-
+            g_target_pos_mm = 0.0f;
             return 1;
-
         }
+        
+        /* 失败 */
+        if (g_app_stepper.origin_state == 0)
+        {
+            g_system_state = STEPPER_STATE_ERROR;
+            return 0;
+        }
+        
+        /* 超时 */
+        if (HAL_GetTick() - start_time > 15000)
+        {
+            Emm_V5_Origin_Interrupt(&g_app_stepper);
+            g_system_state = STEPPER_STATE_ERROR;
+            return 0;
+        }
+    }
+}
 
 /**
-  * @brief    发送非阻塞处碰撞回零指令
+  * @brief    发送异步回零指令 (非阻塞)
   */
 void Stepper_App_StartHoming(void)
 {
     g_system_state = STEPPER_STATE_HOMING;
     
-    /* 1. 确保电机使能 */
+    /* 1. 确认使能 */
     Emm_V5_En_Control(&g_app_stepper, true, false);
     HAL_Delay(100);
     
-    /* 2. 触发原点碰撞回零 (模式2) */
+    /* 2. 触发回零 (模式2) */
     g_app_stepper.origin_state = 0xFF;
     Emm_V5_Origin_Trigger_Return(&g_app_stepper, 2, false);
     
-    /* 3. 记录起跑的时间戳 */
+    /* 3. 记录开始时间 */
     g_homing_start_time = HAL_GetTick();
 }
 
 /**
-  * @brief    在主循环中非阻塞轮询步进电机的回零状态
+  * @brief    循环查询回零状态 (非阻塞)
   */
 uint8_t Stepper_App_PollHoming(void)
 {
     static uint32_t last_poll_time = 0;
     uint32_t now = HAL_GetTick();
     
-    /* 每 250ms 定期发起一次回零状态参数读取请求 (只发不阻塞等) */
+    /* 每 250ms 发送一次查询 */
     if (now - last_poll_time >= 250)
     {
         last_poll_time = now;
         Emm_V5_Read_Sys_Params(&g_app_stepper, S_ORG);
     }
     
-    /* 检查后台接收 DMA 自动更新回来的 origin_state */
+    /* 检查是否回零成功 */
     if (g_app_stepper.origin_state != 0xFF && (g_app_stepper.origin_state & 0x04) == 0)
     {
-        /* A. 回零成功，将当前碰撞位标记为绝对 0 点 */
         Emm_V5_Reset_CurPos_To_Zero(&g_app_stepper);
         HAL_Delay(100);
         
-        /* B. 为防止磨损，向反方向(CW)倒车避让 4mm 安全行程 */
         uint32_t back_pulses = (uint32_t)((SAFE_CLEARANCE_MM / SCREW_LEAD_MM) * PULSE_PER_ROUND);
         Emm_V5_Pos_Control(&g_app_stepper, EMM_CW, 500, 10, back_pulses, false, false);
         HAL_Delay(800);
         
-        /* C. 将避让后的安全点标定为工作的绝对零位 */
         Emm_V5_Reset_CurPos_To_Zero(&g_app_stepper);
         HAL_Delay(100);
         
         g_system_state = STEPPER_STATE_READY;
-        g_target_pos_mm = 0.0f; // 重置目标位置变量为零点
-        return 1;
+        g_target_pos_mm = 0.0f;
+        return 1; /* 成功 */
     }
     
     /* 回零失败 */
     if (g_app_stepper.origin_state == 0)
     {
         g_system_state = STEPPER_STATE_ERROR;
-        return 0;
+        return 0; /* 失败 */
     }
     
-    /* 15 秒超时判定 */
+    /* 超时判定 */
     if (now - g_homing_start_time > 15000)
     {
-        Emm_V5_Origin_Interrupt(&g_app_stepper); /* 中断回零 */
+        Emm_V5_Origin_Interrupt(&g_app_stepper);
         g_system_state = STEPPER_STATE_ERROR;
-        return 0;
+        return 0; /* 失败 */
     }
     
-    return 2; /* 仍在回零进行中 */
+    return 2; /* 正在回零中 */
 }
 
 /**
-  * @brief    判断当前升降绝对位置是否已运动到位
+  * @brief    判断当前位置是否到位
   */
 bool Stepper_App_IsTargetReached(float tolerance_mm)
 {
     float current = Stepper_App_GetCurrentPosition();
     if (current < 0)
     {
-        return false; /* 数据异常不认为到位 */
+        return false;
     }
     
-    /* 当前高度和目标绝对高度差在容差范围内即认为到位 */
-    if (abs(current - g_target_pos_mm) <= tolerance_mm)
+    float diff = current - g_target_pos_mm;
+    if (diff < 0) diff = -diff;
+    
+    if (diff <= tolerance_mm)
     {
         return true;
     }
     return false;
 }
 
-        
-
-        /* 回零失败处理 */
-
-        if (g_app_stepper.origin_state == 0)
-
-        {
-
-            g_system_state = STEPPER_STATE_ERROR;
-
-            return 0;
-
-        }
-
-        
-
-        /* 超过15秒未撞墙判定超时保护，防止顶死电机 */
-
-        if (HAL_GetTick() - start_time > 15000)
-
-        {
-
-            Emm_V5_Origin_Interrupt(&g_app_stepper); /* 强制中断回零 */
-
-            g_system_state = STEPPER_STATE_ERROR;
-
-            return 0;
-
-        }
-
-    }
-
-}
-
-
-
 /**
-
-  * @brief    控制滑块移动到丝杆行程的绝对物理位置 (带软限位保护)
-
+  * @brief    移动到丝杠行程的绝对位置 (单位: mm)
   */
-
 uint8_t Stepper_App_MoveToPosition(float position_mm, uint16_t speed_rpm)
-
 {
     g_target_pos_mm = position_mm;
-
-
-    /* 1. 安全保护：必须先回零校准基准才允许正常运动 */
-
+    
     if (g_system_state != STEPPER_STATE_READY)
-
     {
-
         return 0;
-
     }
-
     
-
-    /* 2. 软件行程范围限位保护，防止滑块撞墙损坏丝杆 */
-
     if (position_mm < 0.0f || position_mm > SCREW_MAX_TRAVEL_MM)
-
     {
-
-        return 0; /* 拒绝越界执行 */
-
+        return 0;
     }
-
     
-
-    /* 3. 物理距离(mm)换算为软件的绝对脉冲数
-
-     * 公式: (目标距离 / 丝杆导程) * 单圈脉冲数
-
-     */
-
     uint32_t absolute_pulses = (uint32_t)((position_mm / SCREW_LEAD_MM) * PULSE_PER_ROUND);
-
-    
-
-    /* 4. 调用绝对位置控制接口 (raF = true)
-
-     * 注意：绝对位置控制模式下，dir 参数在发送后驱动板会自动根据当前所处位置决定旋转方向，
-
-     *       因此这里 dir 参数固定填 0 即可。
-
-     *       加速度参数设为 15 (S型平滑减速，防止瞬间停机丢步)。
-
-     */
-
     Emm_V5_Pos_Control(&g_app_stepper, 0, speed_rpm, 15, absolute_pulses, true, false);
-
     
-
     return 1;
-
 }
 
-
-
 /**
-
-  * @brief    紧急停止电机的运动
-
+  * @brief    紧急停止
   */
-
 void Stepper_App_EmergencyStop(void)
-
 {
-
     Emm_V5_Stop_Now(&g_app_stepper, false);
-
 }
 
-
-
 /**
-
-  * @brief    在串口中断或DMA断帧时调用的数据解析接口 (面向应用层)
-
+  * @brief    DMA中断/解析接收帧的接口
   */
-
 void Stepper_App_Parse(uint8_t *rx_buf, uint8_t rx_len)
-
 {
-
     printf(">> Stepper Rx [%d]:", rx_len);
-
     for (uint8_t i = 0; i < rx_len; i++)
-
     {
-
         printf(" %02X", rx_buf[i]);
-
     }
-
     printf("\r\n");
-
     
-
     Emm_V5_Parse_Frame(&g_app_stepper, rx_buf, rx_len);
-
 }
 
-
-
 /**
-
-  * @brief    获取当前电机的绝对物理坐标 (单位: mm)
-
+  * @brief    获取当前丝杠高度位置 (单位: mm)
   */
-
 float Stepper_App_GetCurrentPosition(void)
 {
-    /* 彻底废除阻塞读取，直接返回内存中已更新好的物理位置值 */
     float position = (g_app_stepper.real_pos / 360.0f) * SCREW_LEAD_MM;
     return position;
 }
 
 /**
-  * @brief    发送异步读取当前位置命令（非阻塞触发）
+  * @brief    异步触发读取当前位置
   */
 void Stepper_App_TriggerPositionRead(void)
 {
     Emm_V5_Read_Sys_Params(&g_app_stepper, S_CPOS);
 }
 
-    
-
-    
-
-
-
 /**
-
-  * @brief    获取当前丝杆系统所处的运行状态
-
+  * @brief    获取当前丝杠系统状态
   */
-
 StepperSysState_t Stepper_App_GetSystemState(void)
-
 {
-
     return g_system_state;
-
 }
-

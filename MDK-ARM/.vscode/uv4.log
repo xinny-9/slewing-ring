@@ -1,4 +1,4 @@
-Load "slewing ring\\slewing ring.axf" 
-Erase Done.Programming Failed!Cannot access Memory
-Error: Flash Download failed  -  "Cortex-M3"
-Flash Load finished at 17:24:25
+*** Using Compiler 'V5.06 update 6 (build 750)', folder: 'D:\Keil_v5\ARM\ARMCC\Bin'
+Build target 'slewing ring'
+"slewing ring\slewing ring.axf" - 0 Error(s), 0 Warning(s).
+Build Time Elapsed:  00:00:00
