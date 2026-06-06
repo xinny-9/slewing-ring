@@ -1,7 +1,7 @@
 /**
  * *****************************************************************************
  * @file    app_system_fsm.c
- * @brief   起重器系统级主控制状态机 (Master FSM) 源文件
+ * @brief   璧烽噸鍣ㄧ郴缁熺骇涓绘帶鍒剁姸鎬佹満 (Master FSM) 婧愭枃浠
  * *****************************************************************************
  */
 
@@ -9,25 +9,27 @@
 #include <stdio.h>
 #include <string.h>
 
-/* 定时器中断相关的全局标志与递减计数器声明 */
+/* 瀹氭椂鍣ㄤ腑鏂鐩稿叧鐨勫叏灞鏍囧織涓庨掑噺璁℃暟鍣ㄥ０鏄 */
 volatile uint8_t  g_fsm_update_flag = 0;
 volatile uint8_t  g_single_step_only = 0;
 volatile uint32_t g_servo_reply_timeout_counter = 0;
 volatile uint32_t g_sequence_settle_counter = 0;
 volatile uint32_t g_settle_delay_counter = 0;
 
-/* 上位机可修改的抓斗放箱对齐角度全局变量 */
+/* 涓婁綅鏈哄彲淇鏀圭殑鎶撴枟鏀剧卞归綈瑙掑害鍏ㄥ眬鍙橀噺 */
 volatile uint16_t g_grab_align_pos_box = GRAB_ALIGN_POS_BOX;
 
-/* 系统状态机当前状态 and 搬运序列工步 */
+/* 绯荤粺鐘舵佹満褰撳墠鐘舵 and 鎼杩愬簭鍒楀伐姝 */
 static SystemState_t g_system_state = SYS_STATE_UNINIT;
 static SystemTaskStep_t g_seq_step = SYS_TASK_IDLE;
 
-/* 暂存等待响应前的状态与目标舵机设备指针 */
+/* 鏆傚瓨绛夊緟鍝嶅簲鍓嶇殑鐘舵佷笌鐩鏍囪埖鏈鸿惧囨寚閽 */
 static SystemState_t g_saved_pre_state = SYS_STATE_UNINIT;
 static ServoDevice_t *g_waiting_dev_ptr = NULL;
+static uint8_t g_next_single_step_num = 1; /* 椤烘″崟姝ヨ皟璇曚笅姝ユ寚绀哄櫒 */
+volatile SystemControlMode_t g_system_control_mode = DEFAULT_SYS_MODE; /* 鍏ㄥ眬宸ヤ綔妯″紡 */
 
-/* 内部辅助函数：获取当前步骤的目标舵机实例指针 */
+/* 鍐呴儴杈呭姪鍑芥暟锛氳幏鍙栧綋鍓嶆ラょ殑鐩鏍囪埖鏈哄疄渚嬫寚閽 */
 static ServoDevice_t* get_servo_device_by_id(uint8_t id)
 {
     if (id == SERVO_BASE_ROT)   return &g_servo_base;
@@ -37,7 +39,7 @@ static ServoDevice_t* get_servo_device_by_id(uint8_t id)
 }
 
 /**
- * @brief  初始化起重器系统级联合状态机
+ * @brief  鍒濆嬪寲璧烽噸鍣ㄧ郴缁熺骇鑱斿悎鐘舵佹満
  */
 void System_FSM_Init(void)
 {
@@ -52,51 +54,53 @@ void System_FSM_Init(void)
     g_settle_delay_counter = 0;
     
     g_waiting_dev_ptr = NULL;
+    g_next_single_step_num = 1;
+    g_system_control_mode = DEFAULT_SYS_MODE;
     
-    /* 调用并初始化子层舵机结构体 */
+    /* 璋冪敤骞跺垵濮嬪寲瀛愬眰鑸垫満缁撴瀯浣 */
     Servo_App_Init();
 }
 
 /**
- * @brief  向指定的舵机发起位置异步读取请求，并暂时切换状态机以进行非阻塞等待
+ * @brief  鍚戞寚瀹氱殑鑸垫満鍙戣捣浣嶇疆寮傛ヨ诲彇璇锋眰锛屽苟鏆傛椂鍒囨崲鐘舵佹満浠ヨ繘琛岄潪闃诲炵瓑寰
  */
 static void trigger_servo_read_blocking_alternative(ServoDevice_t *dev, uint8_t cmd, SystemState_t current_state)
 {
     g_waiting_dev_ptr = dev;
     g_saved_pre_state = current_state;
     
-    /* 1. 发起非阻塞读取请求 (只管发送，不原地 while 等待) */
+    /* 1. 鍙戣捣闈為樆濉炶诲彇璇锋眰 (鍙绠″彂閫侊紝涓嶅師鍦 while 绛夊緟) */
     Servo_App_TriggerRead(dev, cmd);
     
-    /* 2. 设置 10ms 通信等待超时计时器 (50ms 周期内 10ms 足够响应) */
+    /* 2. 璁剧疆 10ms 閫氫俊绛夊緟瓒呮椂璁℃椂鍣 (50ms 鍛ㄦ湡鍐 10ms 瓒冲熷搷搴) */
     g_servo_reply_timeout_counter = 1; 
     
-    /* 3. 切换状态至非阻塞等待响应 */
+    /* 3. 鍒囨崲鐘舵佽嚦闈為樆濉炵瓑寰呭搷搴 */
     g_system_state = SYS_STATE_WAIT_SERVO_REPLY;
 }
 
 /**
- * @brief  过渡跳转辅助函数（在单步调试模式下起到阻断自动跳转的作用）
- * @param  next_step: 连续模式下的下一步骤
- * @param  current_step_num: 当前步骤的数字序号 (1 ~ 9)
+ * @brief  杩囨浮璺宠浆杈呭姪鍑芥暟锛堝湪鍗曟ヨ皟璇曟ā寮忎笅璧峰埌闃绘柇鑷鍔ㄨ烦杞鐨勪綔鐢锛
+ * @param  next_step: 杩炵画妯″紡涓嬬殑涓嬩竴姝ラ
+ * @param  current_step_num: 褰撳墠姝ラょ殑鏁板瓧搴忓彿 (1 ~ 9)
  */
 static void transition_to_next_step(SystemTaskStep_t next_step, uint8_t current_step_num)
 {
-    if (g_single_step_only)
+    /* 濡傛灉鏄璋冭瘯鍗曟ユ寚浠よЕ鍙戯紝鎴栨槸澶勪簬鎵嬪姩妯″紡锛屽埌浣嶅悗涓寰嬪畨鍏ㄦ殏鍋滄嫤鎴 */
+    if (g_single_step_only || g_system_control_mode == SYS_MODE_MANUAL)
     {
-        /* 如果是单步调试模式，在此处中止自动跳转，切回 READY 状态 */
         g_seq_step = SYS_TASK_IDLE;
         g_system_state = SYS_STATE_READY;
-        printf(">> [单步完成]: 步骤 %d 执行到位，系统已挂起暂停并恢复 READY。\r\n", current_step_num);
+        printf(">> [绯荤粺鏆傚仠]: 绗 %d 姝ュ姩浣滃埌浣嶏紝绯荤粺宸插畨鍏ㄦ殏鍋滃苟鍥炲綊 READY銆俓r\n", current_step_num);
     }
     else
     {
-        /* 连续模式下，正常步进切换至下一步 */
+        /* 鑷鍔ㄦā寮忎笅锛岃嚜鍔ㄦ祦杞鍒颁笅涓姝 */
         g_seq_step = next_step;
     }
 }
 
-/* 联动工步执行函数 (非阻塞以 50ms 节拍轮询调用) */
+/* 鑱斿姩宸ユユ墽琛屽嚱鏁 (闈為樆濉炰互 50ms 鑺傛媿杞璇㈣皟鐢) */
 static void Run_Sequence_Step_Handler(void)
 {
     switch (g_seq_step)
@@ -105,21 +109,21 @@ static void Run_Sequence_Step_Handler(void)
             break;
             
         case SYS_TASK_STEP_1_RAISE_SAFE:
-            /* 步骤1: 升降先缩回至安全提升高度 (20mm) */
+            /* 姝ラ1: 鍗囬檷鍏堢缉鍥炶嚦瀹夊叏鎻愬崌楂樺害 (20mm) */
             Stepper_App_MoveToPosition(ELEV_HEIGHT_SAFE, STEPPER_SPEED_ELEV);
             g_seq_step = SYS_TASK_STEP_2_OPEN_CLAW;
             break;
             
         case SYS_TASK_STEP_2_OPEN_CLAW:
-            /* 等待升降到位，代表步骤1彻底完成 */
+            /* 绛夊緟鍗囬檷鍒颁綅锛屼唬琛ㄦラ1褰诲簳瀹屾垚 */
             if (Stepper_App_IsTargetReached(TOLERANCE_STEPPER_MM))
             {
-                /* 步骤 1 完成，判定是否进行单步阻断 */
+                /* 姝ラ 1 瀹屾垚锛屽垽瀹氭槸鍚﹁繘琛屽崟姝ラ樆鏂 */
                 transition_to_next_step(SYS_TASK_STEP_2_OPEN_CLAW, 1);
                 
                 if (g_seq_step != SYS_TASK_IDLE)
                 {
-                    /* 连续运行下，才立即发送爪子开和对准指令 */
+                    /* 杩炵画杩愯屼笅锛屾墠绔嬪嵆鍙戦佺埅瀛愬紑鍜屽瑰噯鎸囦护 */
                     Servo_App_SetTarget(&g_servo_claw, GRAB_CLAW_POS_OPEN, GRAB_CLAW_DURATION_MS);
                     Servo_App_SetTarget(&g_servo_align, GRAB_ALIGN_POS_START, GRAB_ALIGN_DURATION_MS);
                     g_seq_step = SYS_TASK_STEP_3_DESCEND_GRAB;
@@ -128,15 +132,15 @@ static void Run_Sequence_Step_Handler(void)
             break;
             
         case SYS_TASK_STEP_3_DESCEND_GRAB:
-            /* 非阻塞等待两个舵机运动到位，代表步骤2彻底完成 */
+            /* 闈為樆濉炵瓑寰呬袱涓鑸垫満杩愬姩鍒颁綅锛屼唬琛ㄦラ2褰诲簳瀹屾垚 */
             if (Servo_App_IsTargetReached(&g_servo_claw) && Servo_App_IsTargetReached(&g_servo_align))
             {
-                /* 步骤 2 完成，判定单步阻断 */
+                /* 姝ラ 2 瀹屾垚锛屽垽瀹氬崟姝ラ樆鏂 */
                 transition_to_next_step(SYS_TASK_STEP_3_DESCEND_GRAB, 2);
                 
                 if (g_seq_step != SYS_TASK_IDLE)
                 {
-                    /* 连续运行下，升降下降至预备抓取高度 (150mm) */
+                    /* 杩炵画杩愯屼笅锛屽崌闄嶄笅闄嶈嚦棰勫囨姄鍙栭珮搴 (150mm) */
                     Stepper_App_MoveToPosition(ELEV_HEIGHT_GRAB, STEPPER_SPEED_ELEV);
                     g_seq_step = SYS_TASK_STEP_4_1_FIRST_DIG;
                 }
@@ -144,15 +148,15 @@ static void Run_Sequence_Step_Handler(void)
             break;
             
         case SYS_TASK_STEP_4_1_FIRST_DIG:
-            /* 等待升降下降到位，代表步骤3彻底完成 */
+            /* 绛夊緟鍗囬檷涓嬮檷鍒颁綅锛屼唬琛ㄦラ3褰诲簳瀹屾垚 */
             if (Stepper_App_IsTargetReached(TOLERANCE_STEPPER_MM))
             {
-                /* 步骤 3 完成，判定单步阻断 */
+                /* 姝ラ 3 瀹屾垚锛屽垽瀹氬崟姝ラ樆鏂 */
                 transition_to_next_step(SYS_TASK_STEP_4_1_FIRST_DIG, 3);
                 
                 if (g_seq_step != SYS_TASK_IDLE)
                 {
-                    /* 连续运行下，开始第一次半咬合（合拢至450），同时升降同步微下压挖掘（ELEV_FIRST_DIG_DEPTH=6mm） */
+                    /* 杩炵画杩愯屼笅锛屽紑濮嬬涓娆″崐鍜鍚堬紙鍚堟嫝鑷450锛夛紝鍚屾椂鍗囬檷鍚屾ュ井涓嬪帇鎸栨帢锛圗LEV_FIRST_DIG_DEPTH=6mm锛 */
                     float target_height = ELEV_HEIGHT_GRAB + ELEV_FIRST_DIG_DEPTH;
                     Stepper_App_MoveToPosition(target_height, STEPPER_SPEED_ELEV);
                     Servo_App_SetTarget(&g_servo_claw, CLAW_MID_CLOSE_POS, GRAB_CLAW_DURATION_MS / 2);
@@ -162,10 +166,10 @@ static void Run_Sequence_Step_Handler(void)
             break;
             
         case SYS_TASK_STEP_4_1_WAIT:
-            /* 等待第一阶段的挖掘下压与半咬合到位 */
+            /* 绛夊緟绗涓闃舵电殑鎸栨帢涓嬪帇涓庡崐鍜鍚堝埌浣 */
             if (Stepper_App_IsTargetReached(TOLERANCE_STEPPER_MM) && Servo_App_IsTargetReached(&g_servo_claw))
             {
-                /* 向上回退抬起8mm释放挤压应力，同时爪子微张（退回到350） */
+                /* 鍚戜笂鍥為鎶璧8mm閲婃斁鎸ゅ帇搴斿姏锛屽悓鏃剁埅瀛愬井寮狅紙閫鍥炲埌350锛 */
                 float target_height = ELEV_HEIGHT_GRAB + ELEV_FIRST_DIG_DEPTH - ELEV_RETRACT_HEIGHT;
                 Stepper_App_MoveToPosition(target_height, STEPPER_SPEED_ELEV);
                 Servo_App_SetTarget(&g_servo_claw, CLAW_MID_BACK_POS, GRAB_CLAW_DURATION_MS / 4);
@@ -174,20 +178,20 @@ static void Run_Sequence_Step_Handler(void)
             break;
             
         case SYS_TASK_STEP_4_2_WAIT:
-            /* 等待抬起与微张动作结束 */
+            /* 绛夊緟鎶璧蜂笌寰寮犲姩浣滅粨鏉 */
             if (Stepper_App_IsTargetReached(TOLERANCE_STEPPER_MM) && Servo_App_IsTargetReached(&g_servo_claw))
             {
-                /* 动作到位后，设置 150ms 颗粒塌陷流动等待时间 */
+                /* 鍔ㄤ綔鍒颁綅鍚庯紝璁剧疆 150ms 棰楃矑濉岄櫡娴佸姩绛夊緟鏃堕棿 */
                 g_settle_delay_counter = 3;
                 g_seq_step = SYS_TASK_STEP_4_2_DELAY;
             }
             break;
             
         case SYS_TASK_STEP_4_2_DELAY:
-            /* 等待流动稳定 */
+            /* 绛夊緟娴佸姩绋冲畾 */
             if (g_settle_delay_counter == 0)
             {
-                /* 向下全力深入挖掘压入15mm，同时爪子完全闭合咬死 (750) */
+                /* 鍚戜笅鍏ㄥ姏娣卞叆鎸栨帢鍘嬪叆15mm锛屽悓鏃剁埅瀛愬畬鍏ㄩ棴鍚堝挰姝 (750) */
                 float target_height = ELEV_HEIGHT_GRAB + ELEV_SECOND_DIG_DEPTH;
                 Stepper_App_MoveToPosition(target_height, STEPPER_SPEED_ELEV);
                 Servo_App_SetTarget(&g_servo_claw, GRAB_CLAW_POS_CLOSE, GRAB_CLAW_DURATION_MS);
@@ -196,25 +200,25 @@ static void Run_Sequence_Step_Handler(void)
             break;
             
         case SYS_TASK_STEP_4_3_WAIT:
-            /* 等待二次全力深入与咬死闭合到位 */
+            /* 绛夊緟浜屾″叏鍔涙繁鍏ヤ笌鍜姝婚棴鍚堝埌浣 */
             if (Stepper_App_IsTargetReached(TOLERANCE_STEPPER_MM) && Servo_App_IsTargetReached(&g_servo_claw))
             {
-                /* 咬合到位后，设置 1000ms 的抓取物理稳定延时 */
+                /* 鍜鍚堝埌浣嶅悗锛岃剧疆 1000ms 鐨勬姄鍙栫墿鐞嗙ǔ瀹氬欢鏃 */
                 g_sequence_settle_counter = 100;
                 g_seq_step = SYS_TASK_STEP_4_3_SETTLE;
             }
             break;
             
         case SYS_TASK_STEP_4_3_SETTLE:
-            /* 等待物理抓稳，代表步骤4彻底完成 */
+            /* 绛夊緟鐗╃悊鎶撶ǔ锛屼唬琛ㄦラ4褰诲簳瀹屾垚 */
             if (g_sequence_settle_counter == 0)
             {
-                /* 步骤 4 完成，判定单步阻断 */
+                /* 姝ラ 4 瀹屾垚锛屽垽瀹氬崟姝ラ樆鏂 */
                 transition_to_next_step(SYS_TASK_STEP_5_RAISE_SAFE, 4);
                 
                 if (g_seq_step != SYS_TASK_IDLE)
                 {
-                    /* 连续运行下，提升至安全搬运悬挂高度 (20mm) */
+                    /* 杩炵画杩愯屼笅锛屾彁鍗囪嚦瀹夊叏鎼杩愭偓鎸傞珮搴 (20mm) */
                     Stepper_App_MoveToPosition(ELEV_HEIGHT_SAFE, STEPPER_SPEED_ELEV);
                     g_seq_step = SYS_TASK_STEP_5_RAISE_SAFE;
                 }
@@ -222,15 +226,15 @@ static void Run_Sequence_Step_Handler(void)
             break;
             
         case SYS_TASK_STEP_5_RAISE_SAFE:
-            /* 等待起吊升至安全高度，代表步骤5彻底完成 */
+            /* 绛夊緟璧峰悐鍗囪嚦瀹夊叏楂樺害锛屼唬琛ㄦラ5褰诲簳瀹屾垚 */
             if (Stepper_App_IsTargetReached(TOLERANCE_STEPPER_MM))
             {
-                /* 步骤 5 完成，判定单步阻断 */
+                /* 姝ラ 5 瀹屾垚锛屽垽瀹氬崟姝ラ樆鏂 */
                 transition_to_next_step(SYS_TASK_STEP_6_ROTATE_TO_BOX, 5);
                 
                 if (g_seq_step != SYS_TASK_IDLE)
                 {
-                    /* 连续运行下，底座水平旋转至货箱正上方 (600)，且抓斗对准 */
+                    /* 杩炵画杩愯屼笅锛屽簳搴ф按骞虫棆杞鑷宠揣绠辨ｄ笂鏂 (600)锛屼笖鎶撴枟瀵瑰噯 */
                     Servo_App_SetTarget(&g_servo_base, BASE_ROT_POS_BOX, BASE_ROT_DURATION_MS);
                     Servo_App_SetTarget(&g_servo_align, g_grab_align_pos_box, GRAB_ALIGN_DURATION_MS);
                     g_seq_step = SYS_TASK_STEP_6_ROTATE_TO_BOX;
@@ -239,15 +243,15 @@ static void Run_Sequence_Step_Handler(void)
             break;
             
         case SYS_TASK_STEP_6_ROTATE_TO_BOX:
-            /* 等待旋转和角度对齐到位，代表步骤6彻底完成 */
+            /* 绛夊緟鏃嬭浆鍜岃掑害瀵归綈鍒颁綅锛屼唬琛ㄦラ6褰诲簳瀹屾垚 */
             if (Servo_App_IsTargetReached(&g_servo_base) && Servo_App_IsTargetReached(&g_servo_align))
             {
-                /* 步骤 6 完成，判定单步阻断 */
+                /* 姝ラ 6 瀹屾垚锛屽垽瀹氬崟姝ラ樆鏂 */
                 transition_to_next_step(SYS_TASK_STEP_7_DESCEND_DROP, 6);
                 
                 if (g_seq_step != SYS_TASK_IDLE)
                 {
-                    /* 连续运行下，升降下放至货箱释放高度 (100mm) */
+                    /* 杩炵画杩愯屼笅锛屽崌闄嶄笅鏀捐嚦璐х遍噴鏀鹃珮搴 (100mm) */
                     Stepper_App_MoveToPosition(ELEV_HEIGHT_DROP, STEPPER_SPEED_ELEV);
                     g_seq_step = SYS_TASK_STEP_7_DESCEND_DROP;
                 }
@@ -255,15 +259,15 @@ static void Run_Sequence_Step_Handler(void)
             break;
             
         case SYS_TASK_STEP_7_DESCEND_DROP:
-            /* 等待下降到位，代表步骤7彻底完成 */
+            /* 绛夊緟涓嬮檷鍒颁綅锛屼唬琛ㄦラ7褰诲簳瀹屾垚 */
             if (Stepper_App_IsTargetReached(TOLERANCE_STEPPER_MM))
             {
-                /* 步骤 7 完成，判定单步阻断 */
+                /* 姝ラ 7 瀹屾垚锛屽垽瀹氬崟姝ラ樆鏂 */
                 transition_to_next_step(SYS_TASK_STEP_8_RELEASE_CLAW, 7);
                 
                 if (g_seq_step != SYS_TASK_IDLE)
                 {
-                    /* 连续运行下，爪子完全张开释放货物 (200) */
+                    /* 杩炵画杩愯屼笅锛岀埅瀛愬畬鍏ㄥ紶寮閲婃斁璐х墿 (200) */
                     Servo_App_SetTarget(&g_servo_claw, GRAB_CLAW_POS_OPEN, GRAB_CLAW_DURATION_MS);
                     g_seq_step = SYS_TASK_STEP_8_RELEASE_CLAW;
                 }
@@ -271,25 +275,25 @@ static void Run_Sequence_Step_Handler(void)
             break;
             
         case SYS_TASK_STEP_8_RELEASE_CLAW:
-            /* 等待爪子完全张开 */
+            /* 绛夊緟鐖瀛愬畬鍏ㄥ紶寮 */
             if (Servo_App_IsTargetReached(&g_servo_claw))
             {
-                /* 设置放料落稳延时 800ms */
+                /* 璁剧疆鏀炬枡钀界ǔ寤舵椂 800ms */
                 g_sequence_settle_counter = 80;
                 g_seq_step = SYS_TASK_STEP_8_WAIT_SETTLE;
             }
             break;
             
         case SYS_TASK_STEP_8_WAIT_SETTLE:
-            /* 等待延时结束，代表步骤8彻底完成 */
+            /* 绛夊緟寤舵椂缁撴潫锛屼唬琛ㄦラ8褰诲簳瀹屾垚 */
             if (g_sequence_settle_counter == 0)
             {
-                /* 步骤 8 完成，判定单步阻断 */
+                /* 姝ラ 8 瀹屾垚锛屽垽瀹氬崟姝ラ樆鏂 */
                 transition_to_next_step(SYS_TASK_STEP_9_RAISE_AFTER_RELEASE, 8);
                 
                 if (g_seq_step != SYS_TASK_IDLE)
                 {
-                    /* 连续运行下，释放完毕，高度回缩起吊至安全高度 (20mm) */
+                    /* 杩炵画杩愯屼笅锛岄噴鏀惧畬姣曪紝楂樺害鍥炵缉璧峰悐鑷冲畨鍏ㄩ珮搴 (20mm) */
                     Stepper_App_MoveToPosition(ELEV_HEIGHT_SAFE, STEPPER_SPEED_ELEV);
                     g_seq_step = SYS_TASK_STEP_9_RAISE_AFTER_RELEASE;
                 }
@@ -297,15 +301,15 @@ static void Run_Sequence_Step_Handler(void)
             break;
             
         case SYS_TASK_STEP_9_RAISE_AFTER_RELEASE:
-            /* 等待升降安全撤回，代表步骤9彻底完成 */
+            /* 绛夊緟鍗囬檷瀹夊叏鎾ゅ洖锛屼唬琛ㄦラ9褰诲簳瀹屾垚 */
             if (Stepper_App_IsTargetReached(TOLERANCE_STEPPER_MM))
             {
-                /* 步骤 9 完成，判定单步阻断 */
+                /* 姝ラ 9 瀹屾垚锛屽垽瀹氬崟姝ラ樆鏂 */
                 transition_to_next_step(SYS_TASK_STEP_10_RETURN_START, 9);
                 
                 if (g_seq_step != SYS_TASK_IDLE)
                 {
-                    /* 连续运行下，底座及对准回转复位 */
+                    /* 杩炵画杩愯屼笅锛屽簳搴у強瀵瑰噯鍥炶浆澶嶄綅 */
                     Servo_App_SetTarget(&g_servo_base, BASE_ROT_POS_START, BASE_ROT_DURATION_MS);
                     Servo_App_SetTarget(&g_servo_align, GRAB_ALIGN_POS_START, GRAB_ALIGN_DURATION_MS);
                     g_seq_step = SYS_TASK_STEP_10_RETURN_START;
@@ -314,13 +318,13 @@ static void Run_Sequence_Step_Handler(void)
             break;
             
         case SYS_TASK_STEP_10_RETURN_START:
-            /* 等待复位对准全部到位，代表步骤10完成 */
+            /* 绛夊緟澶嶄綅瀵瑰噯鍏ㄩ儴鍒颁綅锛屼唬琛ㄦラ10瀹屾垚 */
             if (Servo_App_IsTargetReached(&g_servo_base) && Servo_App_IsTargetReached(&g_servo_align))
             {
-                /* 搬运任务连续运行流程正常结束 */
+                /* 鎼杩愪换鍔¤繛缁杩愯屾祦绋嬫ｅ父缁撴潫 */
                 g_seq_step = SYS_TASK_IDLE;
                 g_system_state = SYS_STATE_READY;
-                printf(">> [流程结束]: 连续抓取搬运流程成功完成，系统已恢复 READY。\r\n");
+                printf(">> [娴佺▼缁撴潫]: 杩炵画鎶撳彇鎼杩愭祦绋嬫垚鍔熷畬鎴愶紝绯荤粺宸叉仮澶 READY銆俓r\n");
             }
             break;
             
@@ -332,19 +336,19 @@ static void Run_Sequence_Step_Handler(void)
 }
 
 /**
- * @brief  系统状态机核心调度 Process
+ * @brief  绯荤粺鐘舵佹満鏍稿績璋冨害 Process
  */
 void System_FSM_Process(void)
 {
-    static uint8_t  detect_idx = 1;     /* 当前正在探测的舵机序号(1, 2, 3) */
-    static uint32_t telemetry_ticks = 0; /* 低频遥测轮询计时节拍 */
+    static uint8_t  detect_idx = 1;     /* 褰撳墠姝ｅ湪鎺㈡祴鐨勮埖鏈哄簭鍙(1, 2, 3) */
+    static uint32_t telemetry_ticks = 0; /* 浣庨戦仴娴嬭疆璇㈣℃椂鑺傛媿 */
     
-    /* 更新并驱动三个子舵机的状态机时间片 */
+    /* 鏇存柊骞堕┍鍔ㄤ笁涓瀛愯埖鏈虹殑鐘舵佹満鏃堕棿鐗 */
     Servo_App_Update(&g_servo_base);
     Servo_App_Update(&g_servo_align);
     Servo_App_Update(&g_servo_claw);
     
-    /* 异常保护判定：如果在 READY 或 SEQUENCE 搬运中发生硬件故障，切入错误态 */
+    /* 寮傚父淇濇姢鍒ゅ畾锛氬傛灉鍦 READY 鎴 SEQUENCE 鎼杩愪腑鍙戠敓纭浠舵晠闅滐紝鍒囧叆閿欒鎬 */
     if (g_system_state == SYS_STATE_READY || g_system_state == SYS_STATE_RUNNING_SEQUENCE)
     {
         if (Servo_App_CheckAnyError() || Stepper_App_GetSystemState() == STEPPER_STATE_ERROR)
@@ -356,30 +360,32 @@ void System_FSM_Process(void)
     switch (g_system_state)
     {
         case SYS_STATE_UNINIT:
-            /* 1. 上电阶段，立即触发升降步进电机的非阻塞原点回零 */
-            printf(">> [系统启动]: 启动步进升降电机碰撞回零...\r\n");
+            /* 1. 涓婄數闃舵碉紝绔嬪嵆瑙﹀彂鍗囬檷姝ヨ繘鐢垫満鐨勯潪闃诲炲師鐐瑰洖闆 */
+            printf(">> [绯荤粺鍚鍔╙: 鍚鍔ㄦヨ繘鍗囬檷鐢垫満纰版挒鍥為浂...\r\n");
             Stepper_App_StartHoming();
             g_system_state = SYS_STATE_HOMING_STEPPER;
             break;
             
         case SYS_STATE_HOMING_STEPPER:
-            /* 2. 轮询等待步进回零状态 (PollHoming 内部非阻塞，不影响总线) */
+        {
+            /* 2. 杞璇㈢瓑寰呮ヨ繘鍥為浂鐘舵 (PollHoming 鍐呴儴闈為樆濉烇紝涓嶅奖鍝嶆荤嚎) */
             uint8_t homing_res = Stepper_App_PollHoming();
             if (homing_res == 1)
             {
-                printf(">> [系统状态]: 升降回零成功。开始扫描总线舵机...\r\n");
+                printf(">> [绯荤粺鐘舵乚: 鍗囬檷鍥為浂鎴愬姛銆傚紑濮嬫壂鎻忔荤嚎鑸垫満...\r\n");
                 detect_idx = 1;
                 g_system_state = SYS_STATE_DETECT_SERVOS;
             }
             else if (homing_res == 0)
             {
-                /* 回零失败或超时 */
+                /* 鍥為浂澶辫触鎴栬秴鏃 */
                 g_system_state = SYS_STATE_ERROR;
             }
             break;
+        }
             
         case SYS_STATE_DETECT_SERVOS:
-            /* 3. 逐个非阻塞读取舵机 ID，判断是否全部在线 */
+            /* 3. 閫愪釜闈為樆濉炶诲彇鑸垫満 ID锛屽垽鏂鏄鍚﹀叏閮ㄥ湪绾 */
             if (detect_idx <= 3)
             {
                 ServoDevice_t *p_dev = get_servo_device_by_id(detect_idx);
@@ -390,25 +396,25 @@ void System_FSM_Process(void)
             }
             else
             {
-                /* 三个舵机均握手成功在线，进入待命就绪状态 */
+                /* 涓変釜鑸垫満鍧囨彙鎵嬫垚鍔熷湪绾匡紝杩涘叆寰呭懡灏辩华鐘舵 */
                 g_system_state = SYS_STATE_READY;
                 telemetry_ticks = 0;
-                printf(">> [系统就绪]: 升降电机与三路舵机健康自检完毕，READY 待命中。\r\n");
+                printf(">> [绯荤粺灏辩华]: 鍗囬檷鐢垫満涓庝笁璺鑸垫満鍋ュ悍鑷妫瀹屾瘯锛孯EADY 寰呭懡涓銆俓r\n");
             }
             break;
             
         case SYS_STATE_READY:
-            /* 4. 空闲待命模式 */
-            /* 50ms节拍下，每 20 节拍 (1000ms) 触发一次数据回读更新，完全非阻塞异步 */
+            /* 4. 绌洪棽寰呭懡妯″紡 */
+            /* 50ms鑺傛媿涓嬶紝姣 20 鑺傛媿 (1000ms) 瑙﹀彂涓娆℃暟鎹鍥炶绘洿鏂帮紝瀹屽叏闈為樆濉炲紓姝 */
             telemetry_ticks++;
             if (telemetry_ticks >= 20)
             {
                 telemetry_ticks = 0;
                 
-                /* 主动发出读指令，回传的数据会在中断回调中被 ParseFrame 解析并刷新给结构体 */
+                /* 涓诲姩鍙戝嚭璇绘寚浠わ紝鍥炰紶鐨勬暟鎹浼氬湪涓鏂鍥炶皟涓琚 ParseFrame 瑙ｆ瀽骞跺埛鏂扮粰缁撴瀯浣 */
                 Stepper_App_TriggerPositionRead();
                 
-                /* 轮询读总线舵机的位置、电压和温度 */
+                /* 杞璇㈣绘荤嚎鑸垫満鐨勪綅缃銆佺數鍘嬪拰娓╁害 */
                 static uint8_t poll_servo_id = 1;
                 ServoDevice_t *p_dev = get_servo_device_by_id(poll_servo_id);
                 if (p_dev != NULL)
@@ -422,19 +428,19 @@ void System_FSM_Process(void)
             break;
             
         case SYS_STATE_RUNNING_SEQUENCE:
-            /* 5. 执行联动序列 */
+            /* 5. 鎵ц岃仈鍔ㄥ簭鍒 */
             Run_Sequence_Step_Handler();
             
-            /* 在执行序列过程中，可以根据节奏高频回读当前运动中的电机数据 */
+            /* 鍦ㄦ墽琛屽簭鍒楄繃绋嬩腑锛屽彲浠ユ牴鎹鑺傚忛珮棰戝洖璇诲綋鍓嶈繍鍔ㄤ腑鐨勭數鏈烘暟鎹 */
             static uint32_t seq_read_ticks = 0;
             seq_read_ticks++;
-            if (seq_read_ticks >= 2) /* 每 2 节拍 (100ms) */
+            if (seq_read_ticks >= 2) /* 姣 2 鑺傛媿 (100ms) */
             {
                 seq_read_ticks = 0;
-                /* 主动刷新一次当前的升降高度 */
+                /* 涓诲姩鍒锋柊涓娆″綋鍓嶇殑鍗囬檷楂樺害 */
                 Stepper_App_TriggerPositionRead();
                 
-                /* 主动刷新一次当前运动舵机的位置 */
+                /* 涓诲姩鍒锋柊涓娆″綋鍓嶈繍鍔ㄨ埖鏈虹殑浣嶇疆 */
                 if (g_servo_claw.state == SERVO_STATE_MOVING) {
                     trigger_servo_read_blocking_alternative(&g_servo_claw, SERIAL_SERVO_POS_READ, SYS_STATE_RUNNING_SEQUENCE);
                 } else if (g_servo_base.state == SERVO_STATE_MOVING) {
@@ -446,12 +452,12 @@ void System_FSM_Process(void)
             break;
             
         case SYS_STATE_WAIT_SERVO_REPLY:
-            /* 6. 公共非阻塞等待响应逻辑 */
+            /* 6. 鍏鍏遍潪闃诲炵瓑寰呭搷搴旈昏緫 */
             if (g_serial_servo_controller.rx_completed)
             {
                 g_serial_servo_controller.rx_completed = false;
                 
-                /* 从底层通信数据包解析，并刷入对应的舵机结构体对象中 */
+                /* 浠庡簳灞傞氫俊鏁版嵁鍖呰В鏋愶紝骞跺埛鍏ュ瑰簲鐨勮埖鏈虹粨鏋勪綋瀵硅薄涓 */
                 if (g_waiting_dev_ptr != NULL)
                 {
                     uint8_t cmd = g_serial_servo_controller.rx_frame.elements.command;
@@ -462,7 +468,7 @@ void System_FSM_Process(void)
                     
                     if (cmd == SERIAL_SERVO_ID_READ)
                     {
-                        /* 探测握手包成功 */
+                        /* 鎺㈡祴鎻℃墜鍖呮垚鍔 */
                         if (g_saved_pre_state == SYS_STATE_DETECT_SERVOS)
                         {
                             detect_idx++;
@@ -482,10 +488,10 @@ void System_FSM_Process(void)
                     }
                 }
                 
-                /* 返回先前的状态继续工作 */
+                /* 杩斿洖鍏堝墠鐨勭姸鎬佺户缁宸ヤ綔 */
                 g_system_state = g_saved_pre_state;
             }
-            /* 软件定时器减到0，判定为通信超时丢失 (10ms) */
+            /* 杞浠跺畾鏃跺櫒鍑忓埌0锛屽垽瀹氫负閫氫俊瓒呮椂涓㈠け (10ms) */
             else if (g_servo_reply_timeout_counter == 0)
             {
                 if (g_waiting_dev_ptr != NULL)
@@ -493,53 +499,60 @@ void System_FSM_Process(void)
                     g_waiting_dev_ptr->err_count++;
                 }
                 
-                /* 超时强制退回先前状态，防止死锁卡死主程序 */
+                /* 瓒呮椂寮哄埗閫鍥炲厛鍓嶇姸鎬侊紝闃叉㈡婚攣鍗℃讳富绋嬪簭 */
                 g_system_state = g_saved_pre_state;
             }
             break;
             
         case SYS_STATE_ERROR:
-            /* 7. 紧急异常保护 */
+            /* 7. 绱фュ紓甯镐繚鎶 */
             System_FSM_EmergencyStop();
             break;
     }
 }
 
 /**
- * @brief  一键触发执行全局起重搬运联合联动动作流程 (seq 指令)
+ * @brief  涓閿瑙﹀彂鎵ц屽叏灞璧烽噸鎼杩愯仈鍚堣仈鍔ㄥ姩浣滄祦绋 (seq 鎸囦护)
  */
 uint8_t System_FSM_StartSequence(void)
 {
     if (g_system_state != SYS_STATE_READY)
     {
-        return 0; /* 系统不处于就绪待命状态，拒绝执行 */
+        return 0; /* 绯荤粺涓嶅勪簬灏辩华寰呭懡鐘舵侊紝鎷掔粷鎵ц */
     }
     
-    g_single_step_only = 0; /* 自动连续流转模式 */
+    g_single_step_only = 0; /* 鑷鍔ㄨ繛缁娴佽浆妯″紡 */
     g_seq_step = SYS_TASK_STEP_1_RAISE_SAFE;
     g_system_state = SYS_STATE_RUNNING_SEQUENCE;
-    printf(">> [连续启动]: 开始连续执行全局搬运联动动作序列...\r\n");
+    printf(">> [杩炵画鍚鍔╙: 寮濮嬭繛缁鎵ц屽叏灞鎼杩愯仈鍔ㄥ姩浣滃簭鍒...\r\n");
     return 1;
 }
 
 /**
- * @brief  执行单步工步调试流转 (step 指令)
+ * @brief  鎵ц屽崟姝ュ伐姝ヨ皟璇曟祦杞 (step 鎸囦护)
  */
 uint8_t System_FSM_StartSingleStep(uint8_t step_num)
 {
     if (g_system_state != SYS_STATE_READY)
     {
-        return 0; /* 系统不处于就绪待命状态，拒绝执行 */
+        return 0; /* 绯荤粺涓嶅勪簬灏辩华寰呭懡鐘舵侊紝鎷掔粷鎵ц */
     }
     if (step_num < 1 || step_num > 10)
     {
-        return 0; /* 步骤号错误，有效范围 1 ~ 10 */
+        return 0; /* 姝ラゅ彿閿欒锛屾湁鏁堣寖鍥 1 ~ 10 */
     }
     
-    g_single_step_only = 1; /* 开启单步调试拦截 */
+    g_single_step_only = 1; /* 寮鍚鍗曟ヨ皟璇曟嫤鎴 */
     g_system_state = SYS_STATE_RUNNING_SEQUENCE;
     
-    /* 强行根据上位机要求的单步号，跳转到对应的状态起点 */
+    /* 鍚屾ユ洿鏂伴『搴忓崟姝ュ簭鍙蜂负涓嬩竴姝 */
+    g_next_single_step_num = step_num + 1;
+    if (g_next_single_step_num > 10)
+    {
+        g_next_single_step_num = 1;
+    }
+    
+    /* 寮鸿屾牴鎹涓婁綅鏈鸿佹眰鐨勫崟姝ュ彿锛岃烦杞鍒板瑰簲鐨勭姸鎬佽捣鐐 */
     switch (step_num)
     {
         case 1:  g_seq_step = SYS_TASK_STEP_1_RAISE_SAFE; break;
@@ -554,36 +567,71 @@ uint8_t System_FSM_StartSingleStep(uint8_t step_num)
         case 10: g_seq_step = SYS_TASK_STEP_10_RETURN_START; break;
     }
     
-    printf(">> [单步启动]: 开始单步执行步骤 %d ...\r\n", step_num);
+    printf(">> [鍗曟ュ惎鍔╙: 寮濮嬪崟姝ユ墽琛屾ラ %d ...\r\n", step_num);
     return 1;
 }
 
 /**
- * @brief  全局安全紧急停车 (制动升降电机并彻底切断舵机力矩)
+ * @brief  鎵ц屼笅涓娆￠『娆″崟姝ュ伐姝 (nextstep 鎸囦护)
+ */
+uint8_t System_FSM_StartNextSingleStep(void)
+{
+    uint8_t current_step = g_next_single_step_num;
+    if (System_FSM_StartSingleStep(current_step) == 1)
+    {
+        /* 鍚鍔ㄦ垚鍔熷悗锛岃＄畻涓嬩竴涓搴旇ユ墽琛岀殑宸ユュ簭鍙 */
+        g_next_single_step_num++;
+        if (g_next_single_step_num > 10)
+        {
+            g_next_single_step_num = 1;
+        }
+        return current_step;
+    }
+    return 0;
+}
+
+/**
+ * @brief  渚涗笂浣嶆満璋冪敤锛氬姩鎬佽剧疆绯荤粺杩愯屾帶鍒舵ā寮
+ */
+void System_FSM_SetControlMode(SystemControlMode_t mode)
+{
+    g_system_control_mode = mode;
+    if (mode == SYS_MODE_AUTO)
+    {
+        printf(">> [绯荤粺妯″紡]: 宸插姩鎬佸垏鎹涓 [AUTO 鑷鍔ㄨ繍琛屾ā寮廬\r\n");
+    }
+    else
+    {
+        printf(">> [绯荤粺妯″紡]: 宸插姩鎬佸垏鎹涓 [MANUAL 鎵嬪姩璋冭瘯妯″紡]\r\n");
+    }
+}
+
+/**
+ * @brief  鍏ㄥ眬瀹夊叏绱фュ仠杞 (鍒跺姩鍗囬檷鐢垫満骞跺交搴曞垏鏂鑸垫満鍔涚煩)
  */
 void System_FSM_EmergencyStop(void)
 {
-    /* 立即发送步进刹车 */
+    /* 绔嬪嵆鍙戦佹ヨ繘鍒硅溅 */
     Stepper_App_EmergencyStop();
     
-    /* 物理层切断三舵机供电解锁 */
+    /* 鐗╃悊灞傚垏鏂涓夎埖鏈轰緵鐢佃В閿 */
     Servo_App_UnloadAll();
     
     g_system_state = SYS_STATE_ERROR;
 }
 
 /**
- * @brief  供上位机调用：动态微调更新对准货箱时抓斗的对齐目标值
+ * @brief  渚涗笂浣嶆満璋冪敤锛氬姩鎬佸井璋冩洿鏂板瑰噯璐х辨椂鎶撴枟鐨勫归綈鐩鏍囧
  */
 void System_FSM_SetGrabAlignPos(uint16_t pos)
 {
     if (pos > 1000) pos = 1000;
     g_grab_align_pos_box = pos;
-    printf(">> [上位机输入]: 成功微调更新货箱对准角度变量 g_grab_align_pos_box = %d\r\n", pos);
+    printf(">> [涓婁綅鏈鸿緭鍏]: 鎴愬姛寰璋冩洿鏂拌揣绠卞归綈瑙掑害鍙橀噺 g_grab_align_pos_box = %d\r\n", pos);
 }
 
 /**
- * @brief  获取并生成全系统状态与各机构的运行数据，供控制台 status 命令回显
+ * @brief  鑾峰彇骞剁敓鎴愬叏绯荤粺鐘舵佷笌鍚勬満鏋勭殑杩愯屾暟鎹锛屼緵鎺у埗鍙 status 鍛戒护鍥炴樉
  */
 void System_FSM_GetStatusString(char *buf, uint16_t len)
 {
@@ -629,17 +677,17 @@ void System_FSM_GetStatusString(char *buf, uint16_t len)
     }
     
     snprintf(buf, len,
-             "================= 起重器系统实时状态报告 =================\r\n"
-             "  [全局系统状态]: %s | [当前工步]: %s\r\n"
-             "  [调试运行模式]: %s | [货箱对齐角度]: %d\r\n"
+             "================= 璧烽噸鍣ㄧ郴缁熷疄鏃剁姸鎬佹姤鍛 =================\r\n"
+             "  [鍏ㄥ眬绯荤粺鐘舵乚: %s | [褰撳墠宸ユ]: %s\r\n"
+             "  [璋冭瘯杩愯屾ā寮廬: %s | [璐х卞归綈瑙掑害]: %d\r\n"
              "----------------------------------------------------------\r\n"
-             "  1. 升降高度(步进): %.2f mm\r\n"
-             "  2. 底座角度(舵机1): %d | 状态: %d | 在线: %s\r\n"
-             "  3. 对齐角度(舵机2): %d | 状态: %d | 在线: %s\r\n"
-             "  4. 爪子开合(舵机3): %d | 状态: %d | 在线: %s\r\n"
+             "  1. 鍗囬檷楂樺害(姝ヨ繘): %.2f mm\r\n"
+             "  2. 搴曞骇瑙掑害(鑸垫満1): %d | 鐘舵: %d | 鍦ㄧ嚎: %s\r\n"
+             "  3. 瀵归綈瑙掑害(鑸垫満2): %d | 鐘舵: %d | 鍦ㄧ嚎: %s\r\n"
+             "  4. 鐖瀛愬紑鍚(鑸垫満3): %d | 鐘舵: %d | 鍦ㄧ嚎: %s\r\n"
              "==========================================================\r\n",
              state_str, step_str,
-             g_single_step_only ? "SINGLE_STEP (单步)" : "AUTO (连续)",
+             g_system_control_mode == SYS_MODE_AUTO ? "AUTO (自动)" : "MANUAL (手动)",
              g_grab_align_pos_box,
              Stepper_App_GetCurrentPosition(),
              g_servo_base.current_pos, g_servo_base.state, g_servo_base.is_online ? "YES" : "NO",

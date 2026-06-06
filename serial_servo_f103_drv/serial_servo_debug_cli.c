@@ -1,7 +1,7 @@
 /**
  * *****************************************************************************
  * @file    serial_servo_debug_cli.c
- * @brief   äº¤äº’æ§åˆ¶å°æŒ‡ä»¤æ•è·ã€è§£æçŠ¶æ€æœºä¸ API æ˜ å°„æ˜ å°„æºæ–‡ä»¶ (USART3 ä¼˜åŒ–ç‰ˆ)
+ * @brief   ¿ØÖÆÌ¨Ö¸Áî²¶»ñÓë½âÎö×´Ì¬»úÓ³ÉäÔ´ÎÄ¼ş (USART3)
  * *****************************************************************************
  */
 
@@ -9,55 +9,59 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "Control.h"             // å¼•å…¥æ­¥è¿›ç”µæœºæ§åˆ¶å¤´æ–‡ä»¶
+#include "../crane_system_fsm/app_system_fsm.h"
 
 #define CLI_RX_LEN 64
 static uint8_t g_cli_rx_buf[CLI_RX_LEN];
 static uint8_t g_cli_rx_index = 0;
 static volatile bool g_cli_frame_ready = false;
-extern Motor_Control stepper_motor;   // å£°æ˜å¤–éƒ¨çš„æ­¥è¿›ç”µæœºæ§åˆ¶å¥æŸ„
-/* ä¸²å£ 3 å¼‚æ­¥ä¸­æ–­å•å­—èŠ‚æ¥æ”¶ç¼“å†²åŒº */
+/* ´®¿Ú 3 Òì²½½ÓÊÕµ¥×Ö½Ú½ÓÊÕ»º³åÇø */
 static uint8_t g_cli_rx_temp_byte = 0;
 
 /**
- * @brief  åˆå§‹åŒ–è°ƒè¯•å‘½ä»¤è¡Œæ§åˆ¶å°å¹¶å¼€å¯è°ƒè¯•ä¸²å£ 3 æ¥æ”¶ä¸­æ–­
+ * @brief  ³õÊ¼»¯µ÷ÊÔÃüÁîĞĞ¿ØÖÆÌ¨²¢¿ªÆôµ÷ÊÔ´®¿Ú 3 ½ÓÊÕÖĞ¶Ï
  */
 void Debug_CLI_Init(void)
 {
     g_cli_rx_index = 0;
     g_cli_frame_ready = false;
     
-    // å¼ºè¡Œæ¸…é™¤ ORE æŒ‚èµ·æ ‡å¿—ï¼Œé˜²æ­¢ä¸Šç”µäº§ç”Ÿæº¢å‡ºæ­»é”
+    // Ç¿ÖÆÇå³ı ORE ¹ÒÆğ±êÖ¾£¬·ÀÖ¹ÉÏµç²úÉúÒç³öËÀËø
     __HAL_UART_CLEAR_OREFLAG(&DEBUG_CLI_UART);
     
-    // å¼€å¯è°ƒè¯•ä¸²å£ 3 å¼‚æ­¥ 1 å­—èŠ‚ä¸­æ–­æ¥æ”¶
+    // ¿ªÆôµ÷ÊÔ´®¿Ú 3 Òì²½ 1 ×Ö½Ú½ÓÊÕÖĞ¶Ï
     HAL_UART_Receive_IT(&DEBUG_CLI_UART, &g_cli_rx_temp_byte, 1);
     
-    // å‘ä¸Šä½æœºä¸²å£åŠ©æ‰‹è¾“å‡ºæ“ä½œå¼•å¯¼èœå•
+    // ÏòÉÏÎ»»ú´®¿ÚÖúÊÖÊä³ö²Ù×÷²Ëµ¥
     printf("\r\n==================================================\r\n");
-    printf("   âš™ï¸ ä¸²å£æ€»çº¿èˆµæœº STM32F103 è°ƒè¯• CLI æ§åˆ¶å°å°±ç»ª (USART3)\r\n");
-    printf("   ä½¿ç”¨è¯´æ˜: åœ¨ä¸²å£åŠ©æ‰‹è¾“å…¥ä»¥ä¸‹æŒ‡ä»¤ (éœ€å‹¾é€‰å‘é€æ–°è¡Œ):\r\n");
-    printf("     1. pos <id> <pos> <time>  -> æ§åˆ¶è½¬åŠ¨åˆ°ç›®æ ‡ä½ç½® (0~1000)\r\n");
-    printf("     2. read <id>             -> ä¸€é”®å›è¯»ä½ç½®ã€ç”µå‹å’Œæ¸©åº¦\r\n");
-    printf("     3. stop <id>             -> ç´§æ€¥åœæ­¢é”æ­»\r\n");
-    printf("     4. free <id>             -> é‡Šæ”¾åŠ›çŸ© (æ‰‹åŠ¨æ•™å­¦ç¤ºæ•™)\r\n");
-    printf("     5. lock <id>             -> é‡æ–°ä¸Šç”µåŠ›çŸ©é”æ­»\r\n");
+    printf("   [*] ´®¿Ú×ÜÏß¶æ»ú STM32F103 µ÷ÊÔ CLI ¿ØÖÆÌ¨¾ÍĞ÷ (USART3)\r\n");
+    printf("   Ê¹ÓÃËµÃ÷: ÔÚ´®¿ÚÖúÊÖÊäÈëÒÔÏÂÖ¸Áî (Çë¹´Ñ¡·¢ËÍĞÂĞĞ):\r\n");
+    printf("     1. pos <id> <pos> <time>  -> ¿ØÖÆ¶æ»úÔË¶¯µ½Ä¿±êÎ»ÖÃ (0~1000)\r\n");
+    printf("     2. read <id>             -> »Ø¶Á¶æ»úÎ»ÖÃ¡¢µçÑ¹ºÍÎÂ¶È\r\n");
+    printf("     3. stop <id>             -> ½ô¼±Í£Ö¹ËøËÀ\r\n");
+    printf("     4. free <id>             -> ÊÍ·ÅÁ¦¾Ø (ÊÖ¶¯½ÌÑ§Ê¾½Ì)\r\n");
+    printf("     5. lock <id>             -> ÖØĞÂÉÏµçÁ¦¾ØËø¶¨\r\n");
+    printf("     6. motor_pos <pos> <speed> -> ²½½øµç»úÎ»ÖÃ¿ØÖÆ(Emm_V5)\r\n");
+    printf("     7. seq                   -> Æô¶¯È«×Ô¶¯×¥È¡¹¤ÒÕÁ÷³Ì\r\n");
+    printf("     8. next                  -> [¿ì½İµ¥²½] Ë³Ğò´¥·¢²¢ÔËĞĞÏÂÒ»²½\r\n");
+    printf("     9. step <1~10>           -> ´¥·¢Ö´ĞĞ 1~10 ²½Ö¸¶¨µ¥²½µ÷ÊÔ\r\n");
+    printf("     10. set_align <pos>      -> ¶¯Ì¬¶ÔÆë»õÏä½Ç¶È (0~1000)\r\n");
+    printf("     11. status               -> ´òÓ¡ÏµÍ³È«²¿Éè±¸×´Ì¬Ò£²â\r\n");
+    printf("     12. mode <auto/manual>   -> ¶¯Ì¬ÇĞ»»ÏµÍ³ÔËĞĞÄ£Ê½ (Ä¬ÈÏ: auto)\r\n");
     printf("==================================================\r\n\r\n");
-    printf("     6. motor_pos <speed> <acc> <where> -> æ­¥è¿›ç”µæœºä½ç½®æ§åˆ¶\r\n");
-
 }
 
 /**
- * @brief  è°ƒè¯•ä¸²å£å•å­—èŠ‚ä¸­æ–­æ•è·å¤„ç†å™¨
+ * @brief  µ÷ÊÔ´®¿Úµ¥×Ö½ÚÖĞ¶Ï²¶»ñ´¦ÀíÆ÷
  */
 static void Debug_UART_RxHandler(uint8_t byte)
 {
-    // ORE ä¿æŠ¤ï¼šé˜²æ­¢å­—ç¬¦æº¢å‡ºå¼•èµ·ä¸²å£æ­»æœº
+    // ORE ±£»¤£º·ÀÖ¹×Ö·ûÒç³öÒıÆğ´®¿ÚËÀ»ú
     if (__HAL_UART_GET_FLAG(&DEBUG_CLI_UART, UART_FLAG_ORE) != RESET) {
         __HAL_UART_CLEAR_OREFLAG(&DEBUG_CLI_UART);
     }
 
-    // æ•è·å›è½¦æˆ–æ¢è¡Œä½œä¸ºè¡Œç»“æŸç¬¦
+    // ²¶»ñ»Ø³µ»ò»»ĞĞ×÷ÎªÖ¡½áÊø·û
     if (byte == '\n' || byte == '\r') {
         if (g_cli_rx_index > 0) {
             g_cli_rx_buf[g_cli_rx_index] = '\0';
@@ -67,27 +71,27 @@ static void Debug_UART_RxHandler(uint8_t byte)
         if (g_cli_rx_index < CLI_RX_LEN - 1) {
             g_cli_rx_buf[g_cli_rx_index++] = byte;
         } else {
-            g_cli_rx_index = 0; // æº¢å‡ºé˜²æŠ¤
+            g_cli_rx_index = 0; // Òç³ö·À»¤
         }
     }
 }
 
 /**
- * @brief  æŒ‚è½½åœ¨æ ‡å‡†æ¥æ”¶å®Œæˆå›è°ƒä¸­çš„åˆ†å‘æ¥å£
+ * @brief  ¹ÒÔØÔÚ±ê×¼½ÓÊÕÍê³É»Øµ÷ÖĞµÄ·Ö·¢½Ó¿Ú
  */
 void Debug_CLI_RxCallback(UART_HandleTypeDef *huart)
 {
     if (huart->Instance == DEBUG_CLI_UART.Instance) {
-        // æ•è·æ•°æ®
+        // ²¶»ñÊı¾İ
         Debug_UART_RxHandler(g_cli_rx_temp_byte);
         
-        // æå…¶é‡è¦ï¼šç»§ç»­ä¿æŒä¸‹ä¸€æ¬¡ 1 å­—èŠ‚ç›‘å¬
+        // ¼«ÆäÖØÒª£º¼ÌĞø±£³ÖÏÂÒ»´Î 1 ×Ö½Ú¼àÌı
         HAL_UART_Receive_IT(&DEBUG_CLI_UART, &g_cli_rx_temp_byte, 1);
     }
 }
 
 /**
- * @brief  ä¸»å¾ªç¯è°ƒç”¨å‘½ä»¤è§£æä¸èˆµæœºæ§åˆ¶ API æ˜ å°„å™¨
+ * @brief  Ö÷Ñ­»·µ÷ÓÃÃüÁî½âÎöÓëÆğÖØ»ú¶¯×÷Ó³Éä´¦Àí
  */
 void Debug_CLI_Process(void)
 {
@@ -95,7 +99,7 @@ void Debug_CLI_Process(void)
         return;
     }
     
-    // ä½¿ç”¨ strtok åˆ‡å‰²ä¼ å…¥çš„ ASCII å‘½ä»¤å­—ç¬¦ä¸²
+    // Ê¹ÓÃ strtok ÇĞ¸î´«ÈëµÄ ASCII ÃüÁîĞĞ²ÎÊı
     char *cmd = strtok((char*)g_cli_rx_buf, " ");
     if (cmd != NULL) {
         if (strcmp(cmd, "pos") == 0) {
@@ -107,11 +111,11 @@ void Debug_CLI_Process(void)
                 int id = atoi(p1);
                 int pos = atoi(p2);
                 int dur = atoi(p3);
-                // ç›´æ¥æ§åˆ¶çœŸå®çš„èˆµæœºæ§åˆ¶å™¨å¯¹è±¡
+                // Ö±½Ó¿ØÖÆ×ÜÏß¶æ»úÔË¶¯
                 serial_servo_set_position(&g_serial_servo_controller, id, pos, dur);
-                printf(">> [CLIæ‰§è¡Œ]: æ§åˆ¶èˆµæœº %d è¿åŠ¨è‡³ä½ç½® %d, è€—æ—¶ %dms\r\n", id, pos, dur);
+                printf(">> [CLIÖ´ĞĞ]: ¿ØÖÆ¶æ»ú %d ÔË¶¯ÖÁÎ»ÖÃ %d, ºÄÊ± %dms\r\n", id, pos, dur);
             } else {
-                printf(">> å‚æ•°é”™è¯¯! æ ¼å¼åº”ä¸º: pos <id> <pos> <time>\r\n");
+                printf(">> ²ÎÊı´íÎó! ¸ñÊ½Ó¦Îª: pos <id> <pos> <time>\r\n");
             }
         }
         else if (strcmp(cmd, "read") == 0) {
@@ -122,9 +126,9 @@ void Debug_CLI_Process(void)
                 uint16_t vin = 0;
                 uint8_t temp = 0;
                 
-                printf(">> [CLIæ‰§è¡Œ]: æ­£åœ¨ä»æ€»çº¿å›è¯» èˆµæœº %d å®æ—¶å‚æ•°...\r\n", id);
+                printf(">> [CLIÖ´ĞĞ]: ÕıÔÚ´Ó×ÜÏß»Ø¶Á¶æ»ú %d ÊµÊ±²ÎÊı...\r\n", id);
                 
-                // é¡ºåºæ‰§è¡Œå›è¯»ï¼Œæ¯æ¬¡åŠ¨ä½œä¹‹é—´é¢„ç•™ 40ms ç‰©ç†é€šé“é™é»˜é—´æ­‡ï¼Œä»¥ä¿éšœæŠ—ç”µç£å¹²æ‰°åº¦
+                // Ë³ĞòÖ´ĞĞ»Ø¶Á£¬Ã¿²½¶¯×÷Ö®¼ä±£Áô 40ms ÎïÀíÍ¨µÀ¾²Ä¬¼äĞª£¬ÒÔ±£ÕÏ¿¹¸ÉÈÅ
                 int r1 = serial_servo_read_position(&g_serial_servo_controller, id, &pos);
                 HAL_Delay(40);
                 int r2 = serial_servo_read_vin(&g_serial_servo_controller, id, &vin);
@@ -132,12 +136,12 @@ void Debug_CLI_Process(void)
                 int r3 = serial_servo_read_temp(&g_serial_servo_controller, id, &temp);
                 
                 if (r1 == 0 && r2 == 0 && r3 == 0) {
-                    printf(">> [å›è¯»æˆåŠŸ] å®æ—¶ä½ç½®: %4d | ä¾›ç”µç”µå‹: %.2f V | èŠ¯ç‰‡æ¸©åº¦: %d â„ƒ\r\n", pos, vin/1000.0f, temp);
+                    printf(">> [»Ø¶Á³É¹¦] ÊµÊ±Î»ÖÃ: %4d | ¹©µçµçÑ¹: %.2f V | Ğ¾Æ¬ÎÂ¶È: %d ¡æ\r\n", pos, vin/1000.0f, temp);
                 } else {
-                    printf(">> [å›è¯»å¤±è´¥] èˆµæœºæœªå“åº”ï¼è¯·æ’æŸ¥ä¾›ç”µæˆ–IDã€‚(r_pos:%d, r_vin:%d, r_temp:%d)\r\n", r1, r2, r3);
+                    printf(">> [»Ø¶ÁÊ§°Ü] ¶æ»úÎŞÏìÓ¦£¡ÇëÅÅ²é¹©µç»òIDÅäÖÃ¡£(r_pos:%d, r_vin:%d, r_temp:%d)\r\n", r1, r2, r3);
                 }
             } else {
-                printf(">> å‚æ•°é”™è¯¯! æ ¼å¼åº”ä¸º: read <id>\r\n");
+                printf(">> ²ÎÊı´íÎó! ¸ñÊ½Ó¦Îª: read <id>\r\n");
             }
         }
         else if (strcmp(cmd, "stop") == 0) {
@@ -145,9 +149,9 @@ void Debug_CLI_Process(void)
             if (p1) {
                 int id = atoi(p1);
                 serial_servo_stop(&g_serial_servo_controller, id);
-                printf(">> [CLIæ‰§è¡Œ]: ç´§æ€¥åˆ¶åŠ¨ èˆµæœº %d\r\n", id);
+                printf(">> [CLIÖ´ĞĞ]: ½ô¼±ÖÆ¶¯¶æ»ú %d\r\n", id);
             } else {
-                printf(">> å‚æ•°é”™è¯¯! æ ¼å¼åº”ä¸º: stop <id>\r\n");
+                printf(">> ²ÎÊı´íÎó! ¸ñÊ½Ó¦Îª: stop <id>\r\n");
             }
         }
         else if (strcmp(cmd, "free") == 0) {
@@ -155,9 +159,9 @@ void Debug_CLI_Process(void)
             if (p1) {
                 int id = atoi(p1);
                 serial_servo_load_unload(&g_serial_servo_controller, id, 0);
-                printf(">> [CLIæ‰§è¡Œ]: é‡Šæ”¾ èˆµæœº %d åŠ›çŸ© (è¿›å…¥æ‰‹åŠ¨ç¤ºæ•™æ¨¡å¼)\r\n", id);
+                printf(">> [CLIÖ´ĞĞ]: ÊÍ·Å¶æ»ú %d Á¦¾Ø (½øÈëÊÖ¶¯Ê¾½ÌÄ£Ê½)\r\n", id);
             } else {
-                printf(">> å‚æ•°é”™è¯¯! æ ¼å¼åº”ä¸º: free <id>\r\n");
+                printf(">> ²ÎÊı´íÎó! ¸ñÊ½Ó¦Îª: free <id>\r\n");
             }
         }
         else if (strcmp(cmd, "lock") == 0) {
@@ -165,19 +169,88 @@ void Debug_CLI_Process(void)
             if (p1) {
                 int id = atoi(p1);
                 serial_servo_load_unload(&g_serial_servo_controller, id, 1);
-                printf(">> [CLIæ‰§è¡Œ]: é”æ­» èˆµæœº %d åŠ›çŸ©\r\n", id);
+                printf(">> [CLIÖ´ĞĞ]: Ëø¶¨¶æ»ú %d Á¦¾Ø\r\n", id);
             } else {
-                printf(">> å‚æ•°é”™è¯¯! æ ¼å¼åº”ä¸º: lock <id>\r\n");
+                printf(">> ²ÎÊı´íÎó! ¸ñÊ½Ó¦Îª: lock <id>\r\n");
             }
         }
-       
+        else if (strcmp(cmd, "motor_pos") == 0) {
+            char *p1 = strtok(NULL, " ");
+            char *p2 = strtok(NULL, " ");
+            if (p1 && p2) {
+                float pos_mm = atof(p1);
+                int speed_rpm = atoi(p2);
+                if (Stepper_App_MoveToPosition(pos_mm, speed_rpm) == 1) {
+                    printf(">> [CLIÖ´ĞĞ]: Emm_V5 µç»úÏòÄ¿±êÎ»ÖÃ %.1f mm ÒÆ¶¯£¬ËÙ¶È %d RPM\r\n", pos_mm, speed_rpm);
+                } else {
+                    printf(">> [CLIÖ´ĞĞ]: ÒÆ¶¯Ö¸Áî±»¾Ü¾ø£¡µç»ú´¦ÓÚÎ´¾ÍĞ÷/»ØÁã/¹ÊÕÏ×´Ì¬\r\n");
+                }
+            } else {
+                printf(">> ²ÎÊı´íÎó! ¸ñÊ½Ó¦Îª: motor_pos <pos> <speed>\r\n");
+            }
+        }
+        else if (strcmp(cmd, "seq") == 0) {
+            if (System_FSM_StartSequence() == 1) {
+                printf(">> [CLIÖ´ĞĞ]: ÆğÖØ»ú×´Ì¬»úÈ«×Ô¶¯×¥È¡¹¤ÒÕĞòÁĞÆô¶¯³É¹¦...\r\n");
+            } else {
+                printf(">> [CLIÖ´ĞĞ]: Æô¶¯¾Ü¾ø£¡ÏµÍ³µ±Ç°²»´¦ÓÚ READY ×´Ì¬\r\n");
+            }
+        }
+        else if (strcmp(cmd, "next") == 0) {
+            uint8_t triggered_step = System_FSM_StartNextSingleStep();
+            if (triggered_step > 0) {
+                printf(">> [CLIÖ´ĞĞ]: [Ë³´Îµ¥²½] ³É¹¦´¥·¢ÆğÖØ»úµÚ %d ²½¶¯×÷...\r\n", triggered_step);
+            } else {
+                printf(">> [CLIÖ´ĞĞ]: ´¥·¢Ê§°Ü£¡×´Ì¬»úÎ´¾ÍĞ÷»òµ±Ç°¶¯×÷ÉĞÎ´½áÊø\r\n");
+            }
+        }
+        else if (strcmp(cmd, "step") == 0) {
+            char *p1 = strtok(NULL, " ");
+            if (p1) {
+                int step_num = atoi(p1);
+                if (System_FSM_StartSingleStep(step_num) == 1) {
+                    printf(">> [CLIÖ´ĞĞ]: ³É¹¦´¥·¢ÔËĞĞÖ¸¶¨µ¥²½¶¯×÷ %d...\r\n", step_num);
+                } else {
+                    printf(">> [CLIÖ´ĞĞ]: ´¥·¢¾Ü¾ø£¡²½Öè±ØĞëÔÚ 1~10 Ö®¼ä»ò×´Ì¬»úÎ´¾ÍĞ÷\r\n");
+                }
+            } else {
+                printf(">> ²ÎÊı´íÎó! ¸ñÊ½Ó¦Îª: step <1~10>\r\n");
+            }
+        }
+        else if (strcmp(cmd, "set_align") == 0) {
+            char *p1 = strtok(NULL, " ");
+            if (p1) {
+                int align_pos = atoi(p1);
+                System_FSM_SetGrabAlignPos((uint16_t)align_pos);
+            } else {
+                printf(">> ²ÎÊı´íÎó! ¸ñÊ½Ó¦Îª: set_align <pos>\r\n");
+            }
+        }
+        else if (strcmp(cmd, "status") == 0) {
+            char telemetry_buf[256];
+            System_FSM_GetStatusString(telemetry_buf, sizeof(telemetry_buf));
+            printf("%s\r\n", telemetry_buf);
+        }
+        else if (strcmp(cmd, "mode") == 0) {
+            char *p1 = strtok(NULL, " ");
+            if (p1) {
+                if (strcmp(p1, "auto") == 0) {
+                    System_FSM_SetControlMode(SYS_MODE_AUTO);
+                } else if (strcmp(p1, "manual") == 0) {
+                    System_FSM_SetControlMode(SYS_MODE_MANUAL);
+                } else {
+                    printf(">> ²ÎÊı´íÎó! ¸ñÊ½Ó¦Îª: mode <auto/manual>\r\n");
+                }
+            } else {
+                printf(">> ²ÎÊı´íÎó! ¸ñÊ½Ó¦Îª: mode <auto/manual>\r\n");
+            }
+        }
         else {
-           printf(">> æœªçŸ¥æŒ‡ä»¤! ä»…æ”¯æŒæ ¼å¼: pos/read/stop/free/lock\r\n");
+           printf(">> Î´ÖªÖ¸Áî! ½öÖ§³Ö¸ñÊ½: pos/read/stop/free/lock/motor_pos/seq/next/step/set_align/status/mode\r\n");
         }
     }
-
     
-    // é‡ç½®ç¼“å†²åŒº
+    // ÖØÖÃ»º³åÇø
     g_cli_rx_index = 0;
     g_cli_frame_ready = false;
 }

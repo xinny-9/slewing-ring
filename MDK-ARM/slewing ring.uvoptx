@@ -558,8 +558,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\zdt_stepper\Control.c</PathWithFileName>
-      <FilenameWithoutPath>Control.c</FilenameWithoutPath>
+      <PathWithFileName>..\crane_system_fsm\app_servo_fsm.c</PathWithFileName>
+      <FilenameWithoutPath>app_servo_fsm.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -570,8 +570,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\zdt_stepper\Data.c</PathWithFileName>
-      <FilenameWithoutPath>Data.c</FilenameWithoutPath>
+      <PathWithFileName>..\crane_system_fsm\app_system_fsm.c</PathWithFileName>
+      <FilenameWithoutPath>app_system_fsm.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>

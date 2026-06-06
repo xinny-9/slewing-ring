@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F103xB</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../Drivers/STM32F1xx_HAL_Driver/Inc;../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F1xx/Include;../Drivers/CMSIS/Include;../serial_servo_f103_drv;../zdt_stepper;../Emm_V5_stepper</IncludePath>
+              <IncludePath>../Core/Inc;../Drivers/STM32F1xx_HAL_Driver/Inc;../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F1xx/Include;../Drivers/CMSIS/Include;../serial_servo_f103_drv;../zdt_stepper;../Emm_V5_stepper;..\crane_system_fsm</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -636,14 +636,14 @@
               <FilePath>..\serial_servo_f103_drv\serial_servo_hal.c</FilePath>
             </File>
             <File>
-              <FileName>Control.c</FileName>
+              <FileName>app_servo_fsm.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\zdt_stepper\Control.c</FilePath>
+              <FilePath>..\crane_system_fsm\app_servo_fsm.c</FilePath>
             </File>
             <File>
-              <FileName>Data.c</FileName>
+              <FileName>app_system_fsm.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\zdt_stepper\Data.c</FilePath>
+              <FilePath>..\crane_system_fsm\app_system_fsm.c</FilePath>
             </File>
           </Files>
         </Group>

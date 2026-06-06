@@ -55,6 +55,8 @@
 
 #include "app_stepper_ctrl.h"
 
+#include "../crane_system_fsm/app_system_fsm.h"
+
 
 
 /* USER CODE END Includes */
@@ -216,51 +218,8 @@ int main(void)
 
 
 
-  // 独立执行寻零 (找0点) 标定流程
-
-  printf(">> 启动系统，准备执行上电寻零...\r\n");
-
-  
-
-  // 3.1 调用寻零函数，滑块会慢速朝逆时针方向撞击硬限位
-
-  uint8_t homing_result = Stepper_App_ExecuteHoming();
-
-  
-
-  // 3.2 判断刚才寻零的执行结果
-
-  if (homing_result == 1)
-
-  {
-
-      // 成功撞墙，并完成了 4mm 的安全退让以及 0 毫米的起点位置标定
-
-      printf(">> 寻零标定成功！系统状态转为 READY，准备进入主工作循环。\r\n");
-
-  }
-
-  else
-
-  {
-
-      // 回零超过 15 秒未撞墙（超时）或发生串口通信失败
-
-      printf(">> 寻零失败！发生通信故障或机械卡死，系统挂起保护。\r\n");
-
-      
-
-      // 闪烁报警灯以示故障，禁止系统继续运转
-
-      while(1) 
-
-      {
-
-          HAL_Delay(200);
-
-      }
-
-  }
+  /* 3. 初始化起重机主控系统状态机（将自动流转非阻塞回零及设备检测） */
+  System_FSM_Init();
 
 
 
@@ -284,9 +243,9 @@ int main(void)
 
 
 
-  uint32_t last_action_tick = 0;
+  
 
-  uint8_t toggle_pos_flag = 0;
+  
 
 
 
@@ -311,40 +270,17 @@ int main(void)
 
     /* USER CODE END WHILE */
 
-    /* USER CODE BEGIN 3 */
-
-
-
+     /* 1. 处理控制台串口 3 命令行交互 */
      Debug_CLI_Process();
 
-
-
-    
-
- 
-      printf(">> 正在前往 150.0mm 位置...\r\n");
-
-      Stepper_App_MoveToPosition(150.0f, 1200);
-
-      HAL_Delay(25000);
-
-   
-
-      // 滑块会以 1000 RPM 的工作速度快速、丝滑地直接滑回 0mm 处，绝对不会发生撞墙。
-
-       
-
-      printf(">> 任务结束，快速返回 0mm 零点位置（无撞击）...\r\n");
-
-      Stepper_App_MoveToPosition(0.0f, 1000);
-
-      HAL_Delay(25000); // 延时 15 秒等待其回到起点，开始下一轮循环
-
-
-
+     /* 2. 状态机 50ms 刷新节拍 */
+     if (g_fsm_update_flag)
+     {
+         g_fsm_update_flag = 0;
+         System_FSM_Process();
+     }
+     /* USER CODE END 3 */
   }
-
-  /* USER CODE END 3 */
 }
 
 /**
@@ -418,23 +354,32 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 // =================================================================
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-
 {
-
     if (htim->Instance == TIM3)
+    {
+        /* 1. 高精度软件计时器递减 (10ms 节拍) */
+        if (g_servo_reply_timeout_counter > 0)
+        {
+            g_servo_reply_timeout_counter--;
+        }
+        if (g_sequence_settle_counter > 0)
+        {
+            g_sequence_settle_counter--;
+        }
+        if (g_settle_delay_counter > 0)
+        {
+            g_settle_delay_counter--;
+        }
 
-      {
-
-
-
-
-
-
-
-      }
-
-
-
+        /* 2. 状态机 FSM 主循环刷新标志 (10ms * 5 = 50ms / 20Hz 降频) */
+        static uint8_t tick_divider = 0;
+        tick_divider++;
+        if (tick_divider >= 5)
+        {
+            tick_divider = 0;
+            g_fsm_update_flag = 1;
+        }
+    }
 }
 
 
