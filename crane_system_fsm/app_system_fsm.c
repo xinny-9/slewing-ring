@@ -403,14 +403,14 @@ void System_FSM_Process(void)
                     /* 超过 3，说明全部检测完成，进入 READY 状态 */
                     g_system_state = SYS_STATE_READY;
                     telemetry_ticks = 0;
-                    printf(">> [系统状态]: 自检扫描完成，系统处于 READY 状态。\r\n");
+                    printf(">> [系统状态]: 自检扫描完成，系统处于 READY 状态。\n");
                 }
             }
             break;
             
         case SYS_STATE_READY:
             /* 4. 闲置状态 */
-            /* 50ms单位，每 20 次 (1000ms) 触发一次数据读取和全局异步更新 */
+            /* 50ms单位，每 20 次 (1000ms) 触发一次数据读取 and 全局异步更新 */
             telemetry_ticks++;
             if (telemetry_ticks >= 20)
             {
@@ -557,39 +557,75 @@ uint8_t System_FSM_StartSingleStep(uint8_t step_num)
 {
     if (g_system_state != SYS_STATE_READY)
     {
-        return 0; /* 系统不处于就绪待命状态，拒绝执行 */
+        return 0; /* 系统未就绪拒绝执行 */
     }
     if (step_num < 1 || step_num > 10)
     {
-        return 0; /* 工步序号错误，有效范围 1 ~ 10 */
+        return 0; /* 有效范围 1 ~ 10 */
     }
     
-    g_single_step_only = 1; /* 开启单步调试拦截 */
+    g_single_step_only = 1;
     g_system_state = SYS_STATE_RUNNING_SEQUENCE;
     
-    /* 同步更新顺序单步序号为下一步 */
     g_next_single_step_num = step_num + 1;
     if (g_next_single_step_num > 10)
     {
         g_next_single_step_num = 1;
     }
     
-    /* 强制根据上位机要求的单步号，跳转到对应的状态起点 */
+    /* 强力分配单步启动任务步骤：直接发令，并在状态机中投入该动作的到位检测 */
     switch (step_num)
     {
-        case 1:  g_seq_step = SYS_TASK_STEP_1_RAISE_SAFE; break;
-        case 2:  g_seq_step = SYS_TASK_STEP_2_OPEN_CLAW; break;
-        case 3:  g_seq_step = SYS_TASK_STEP_3_DESCEND_GRAB; break;
-        case 4:  g_seq_step = SYS_TASK_STEP_4_1_FIRST_DIG; break;
-        case 5:  g_seq_step = SYS_TASK_STEP_5_RAISE_SAFE; break;
-        case 6:  g_seq_step = SYS_TASK_STEP_6_ROTATE_TO_BOX; break;
-        case 7:  g_seq_step = SYS_TASK_STEP_7_DESCEND_DROP; break;
-        case 8:  g_seq_step = SYS_TASK_STEP_8_RELEASE_CLAW; break;
-        case 9:  g_seq_step = SYS_TASK_STEP_9_RAISE_AFTER_RELEASE; break;
-        case 10: g_seq_step = SYS_TASK_STEP_10_RETURN_START; break;
+        case 1:
+            Stepper_App_MoveToPosition(ELEV_HEIGHT_SAFE, STEPPER_SPEED_ELEV);
+            g_seq_step = SYS_TASK_STEP_2_OPEN_CLAW; /* 在步骤 2 等待到位 */
+            break;
+        case 2:
+            Servo_App_SetTarget(&g_servo_claw, GRAB_CLAW_POS_OPEN, GRAB_CLAW_DURATION_MS);
+            Servo_App_SetTarget(&g_servo_align, GRAB_ALIGN_POS_START, GRAB_ALIGN_DURATION_MS);
+            g_seq_step = SYS_TASK_STEP_3_DESCEND_GRAB; /* 在步骤 3 等待到位 */
+            break;
+        case 3:
+            Stepper_App_MoveToPosition(ELEV_HEIGHT_GRAB, STEPPER_SPEED_ELEV);
+            g_seq_step = SYS_TASK_STEP_4_1_FIRST_DIG; /* 在步骤 4-1 等待到位 */
+            break;
+        case 4:
+            {
+                float target_height = ELEV_HEIGHT_GRAB + ELEV_FIRST_DIG_DEPTH;
+                Stepper_App_MoveToPosition(target_height, STEPPER_SPEED_ELEV);
+                Servo_App_SetTarget(&g_servo_claw, CLAW_MID_CLOSE_POS, GRAB_CLAW_DURATION_MS / 2);
+                g_seq_step = SYS_TASK_STEP_4_1_WAIT; /* 等待第一阶段到位 */
+            }
+            break;
+        case 5:
+            Stepper_App_MoveToPosition(ELEV_HEIGHT_SAFE, STEPPER_SPEED_ELEV);
+            g_seq_step = SYS_TASK_STEP_5_RAISE_SAFE; /* 在步骤 5 等待到位 */
+            break;
+        case 6:
+            Servo_App_SetTarget(&g_servo_base, BASE_ROT_POS_BOX, BASE_ROT_DURATION_MS);
+            Servo_App_SetTarget(&g_servo_align, g_grab_align_pos_box, GRAB_ALIGN_DURATION_MS);
+            g_seq_step = SYS_TASK_STEP_6_ROTATE_TO_BOX; /* 在步骤 6 等待到位 */
+            break;
+        case 7:
+            Stepper_App_MoveToPosition(ELEV_HEIGHT_DROP, STEPPER_SPEED_ELEV);
+            g_seq_step = SYS_TASK_STEP_7_DESCEND_DROP; /* 在步骤 7 等待到位 */
+            break;
+        case 8:
+            Servo_App_SetTarget(&g_servo_claw, GRAB_CLAW_POS_OPEN, GRAB_CLAW_DURATION_MS);
+            g_seq_step = SYS_TASK_STEP_8_RELEASE_CLAW; /* 在步骤 8 等待到位及延时 */
+            break;
+        case 9:
+            Stepper_App_MoveToPosition(ELEV_HEIGHT_SAFE, STEPPER_SPEED_ELEV);
+            g_seq_step = SYS_TASK_STEP_9_RAISE_AFTER_RELEASE; /* 在步骤 9 等待到位 */
+            break;
+        case 10:
+            Servo_App_SetTarget(&g_servo_base, BASE_ROT_POS_START, BASE_ROT_DURATION_MS);
+            Servo_App_SetTarget(&g_servo_align, GRAB_ALIGN_POS_START, GRAB_ALIGN_DURATION_MS);
+            g_seq_step = SYS_TASK_STEP_10_RETURN_START; /* 在步骤 10 等待到位并复位 */
+            break;
     }
     
-    printf(">> [单步启动]: 开始单步执行工步 %d ...\r\n", step_num);
+    printf(">> [单步启动]: 开始单步执行工步 %d ...\n", step_num);
     return 1;
 }
 
@@ -601,12 +637,6 @@ uint8_t System_FSM_StartNextSingleStep(void)
     uint8_t current_step = g_next_single_step_num;
     if (System_FSM_StartSingleStep(current_step) == 1)
     {
-    /* 启动成功后，计算下一个应该执行的工步序号 */
-        g_next_single_step_num++;
-        if (g_next_single_step_num > 10)
-        {
-            g_next_single_step_num = 1;
-        }
         return current_step;
     }
     return 0;

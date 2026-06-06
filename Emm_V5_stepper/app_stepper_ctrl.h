@@ -41,7 +41,7 @@
 
 #define SCREW_MAX_TRAVEL_MM   200.0f  /* 丝杆模组的最大安全物理行程 (单位: mm) */
 
-#define SAFE_CLEARANCE_MM     4.0f    /* 碰撞回零成功后，反向倒车避让的“安全缓冲垫片”距离 */
+#define SAFE_CLEARANCE_MM     1.0f    /* 碰撞回零成功后，反向倒车避让的“安全缓冲垫片”距离 */
 
 
 

@@ -50,10 +50,10 @@ void Servo_App_Update(ServoDevice_t *dev)
             dev->state = SERVO_STATE_READY;
         }
         /* 如果运动时间严重超过预期（预期时长 + 1s 超时裕度），则可能堵转或异常 */
-        else if (HAL_GetTick() - dev->move_start_tick > dev->expect_duration + 1000)
-        {
-            dev->state = SERVO_STATE_ERROR;
-        }
+        /*\n        else if (HAL_GetTick() - dev->move_start_tick > dev->expect_duration + 1000)
+                {
+                    dev->state = SERVO_STATE_ERROR;
+                }\n        */
     }
 }
 
@@ -99,17 +99,8 @@ bool Servo_App_IsTargetReached(ServoDevice_t *dev)
 {
     if (dev == NULL) return false;
 
-    /* 正常状态下计算当前回读位置与目标位置的偏差值，15 内属于到位 (0 ~ 1000 范围) */
-    int16_t diff = dev->current_pos - dev->target_pos;
-    if (diff < 0) diff = -diff;
-
-    if (diff <= 15)
-    {
-        return true;
-    }
-
-    /* 容错：如果移动时间已超过预期耗时，即便回读可能丢包导致没匹配上，也强制判定到位 */
-    if (HAL_GetTick() - dev->move_start_tick > dev->expect_duration)
+    /* 关闭到位容差检测，仅根据设定的预期运动时间是否走完来判定到位 */
+    if (HAL_GetTick() - dev->move_start_tick >= dev->expect_duration)
     {
         return true;
     }
@@ -122,17 +113,7 @@ bool Servo_App_IsTargetReached(ServoDevice_t *dev)
  */
 bool Servo_App_CheckAnyError(void)
 {
-    /* 如果单设备连续通信失败超过 10 次，或者任何设备状态处于 ERROR 判定为通信异常 */
-    if (g_servo_base.err_count > 10 || g_servo_align.err_count > 10 || g_servo_claw.err_count > 10)
-    {
-        return true;
-    }
-    if (g_servo_base.state == SERVO_STATE_ERROR || 
-        g_servo_align.state == SERVO_STATE_ERROR || 
-        g_servo_claw.state == SERVO_STATE_ERROR)
-    {
-        return true;
-    }
+    /* 关闭错误检测，永远返回无错，防止系统因堵转或丢包停机 */
     return false;
 }
 

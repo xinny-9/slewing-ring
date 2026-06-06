@@ -34,15 +34,15 @@
 #define GRAB_ALIGN_POS_BOX          (400)       /* 货箱方向抓斗对齐角度缺省值 (仅作为上电初值) */
 
 /* C. 爪子完全开合位置 (总线舵机 3 - 范围: 0 ~ 1000) */
-#define GRAB_CLAW_POS_OPEN          (200)       /* 爪子完全张开位置脉冲值 */
-#define GRAB_CLAW_POS_CLOSE         (750)       /* 爪子完全闭合夹紧位置脉冲值 */
+#define GRAB_CLAW_POS_OPEN          (242)       /* 爪子完全张开位置脉冲值 */
+#define GRAB_CLAW_POS_CLOSE         (435)       /* 爪子完全闭合夹紧位置脉冲值 */
 
 /* D. "顿戳微张式二次深挖" 专有工艺参数 */
 #define ELEV_FIRST_DIG_DEPTH        (6.0f)      /* 第一次伴随浅压挖掘深度 (mm) */
 #define ELEV_RETRACT_HEIGHT         (8.0f)      /* 第一次压完后，向上提起释放硬应力的距离 (mm) */
 #define ELEV_SECOND_DIG_DEPTH       (15.0f)     /* 第二次全力深入挖掘压入的绝对深度 (mm) */
-#define CLAW_MID_CLOSE_POS          (450)       /* 第一次下压时，爪子半闭合聚拢角度 (脉冲) */
-#define CLAW_MID_BACK_POS           (350)       /* 提起释放应力时，爪子微幅向外退回张开的角度 (脉冲) */
+#define CLAW_MID_CLOSE_POS          (370)       /* 第一次下压时，爪子半闭合聚拢角度 (脉冲) */
+#define CLAW_MID_BACK_POS           (300)       /* 提起释放应力时，爪子微幅向外退回张开的角度 (脉冲) */
 
 /* E. 时间与速度配置参数 (S曲线及运动时间) */
 #define STEPPER_SPEED_ELEV          (800)       /* 升降步进电机的移动速度 (RPM) */
