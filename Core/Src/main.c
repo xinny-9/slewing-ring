@@ -410,7 +410,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
     
 
-    // 判断数据是否来自于与电机连接的串口2
+
 
 
 

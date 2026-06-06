@@ -1,106 +1,133 @@
-# 起重器（升降 + 三总线舵机）联合控制状态机库使用说明
+# 起重机协同状态机与 Emm_V5 电机控制系统操作指南 (完整版)
 
-本库是专门为起重器搬运系统定制的非阻塞动作控制库，部署在独立文件夹 [crane_system_fsm](file:///d:/stm32hal/slewing%20ring/crane_system_fsm) 下。本库实现了一个主控系统状态机（Master FSM）和三个舵机的独立状态机，将高度升降步进电机和三路总线舵机有机结合，并为上位机微调预留了非阻塞接口。
+本控制系统是一套为 STM32F103 开发的非阻塞起重机主控状态机（Master FSM）库。系统彻底弃用了冗余的 ZDT 步进电机旧库，改为全面采用 Emm_V5 闭环步进升降电机与总线旋转舵机联控的控制架构。
 
 ---
 
 ## 1. 目录结构与文件职责
 
-- [app_servo_fsm.h](file:///d:/stm32hal/slewing%20ring/crane_system_fsm/app_servo_fsm.h) / [app_servo_fsm.c](file:///d:/stm32hal/slewing%20ring/crane_system_fsm/app_servo_fsm.c)：
-  **舵机状态机模块**。
-  管理底座（ID:1）、抓斗对齐（ID:2）、爪子开合（ID:3）三个舵机独立的生命周期状态（`UNINIT`, `DETECTING`, `READY`, `MOVING`, `ERROR`），实现非阻塞的到位容差匹配和移动超时时间防卡死保护。
-- [app_system_fsm.h](file:///d:/stm32hal/slewing%20ring/crane_system_fsm/app_system_fsm.h) / [app_system_fsm.c](file:///d:/stm32hal/slewing%20ring/crane_system_fsm/app_system_fsm.c)：
-  **系统级联合状态机主模块**。
-  核心心跳频率为 **50ms (20Hz)**，大幅降低串口总线硬件带宽开销，抗高频干扰能力极强。实现了十步**“顿戳微张式二次深挖”**颗粒（豆类）搬运工艺控制逻辑。同时导出上位机控制的对齐角度变量 `g_grab_align_pos_box` 及微调接口。
+*   **[app_servo_fsm.h](file:///d:/stm32hal/slewing%20ring/crane_system_fsm/app_servo_fsm.h) / [app_servo_fsm.c](file:///d:/stm32hal/slewing%20ring/crane_system_fsm/app_servo_fsm.c)**：
+    **舵机管理模块**。负责旋转（ID1）、对齐（ID2）和抓爪（ID3）三个总线舵机的非阻塞状态维护（包含 `UNINIT`, `DETECTING`, `READY`, `MOVING`, `ERROR` 等），支持指令异步触发发送与非阻塞到位检测。
+*   **[app_system_fsm.h](file:///d:/stm32hal/slewing%20ring/crane_system_fsm/app_system_fsm.h) / [app_system_fsm.c](file:///d:/stm32hal/slewing%20ring/crane_system_fsm/app_system_fsm.c)**：
+    **系统主状态机模块**。以固定的 50ms（20Hz）分频节拍更新，负责控制整机 10 个工步动作的非阻塞流转，并提供上位机动态对齐宏参数 `g_grab_align_pos_box` 及单步/自动调试的流转判定。
 
 ---
 
-## 2. 调试参数宏定义清单
+## 2. 出厂配置参数定义清单
 
-以下是 [app_system_fsm.h](file:///d:/stm32hal/slewing%20ring/crane_system_fsm/app_system_fsm.h) 中定义的完整可调参数清单，您可以直接在头文件中修改这些数值来适配您的实际硬件尺寸和机械行程：
+在 [app_system_fsm.h](file:///d:/stm32hal/slewing%20ring/crane_system_fsm/app_system_fsm.h) 中预留了以下核心工艺参数定义，您可以根据机械结构的实际行程和响应时间对其进行微调：
 
 ```c
-/* =============================================================================
- *                               调试参数宏定义清单
- * =============================================================================
- */
+/* A. 升降高度位置参数 (单位: mm) */
+#define ELEV_HEIGHT_SAFE            (20.0f)     /* 提升至安全回缩高度，防止底座转动时产生碰撞 */
+#define ELEV_HEIGHT_GRAB            (150.0f)    /* 抓取落料斗时的预备下压高度 */
+#define ELEV_HEIGHT_DROP            (100.0f)    /* 放置货物至货箱上方的安全落料高度 */
+#define ELEV_HEIGHT_MAX_LIMIT       (3500.0f)   /* 丝杠模组物理最高安全限位行程 */
 
-/* A. 升降高度位置参数 (步进电机 - 精度: 0.01mm) */
-#define ELEV_HEIGHT_SAFE            (20.0f)     /* 搬运与旋转过程中的安全悬挂高度 (mm)，防拖地碰壁 */
-#define ELEV_HEIGHT_GRAB            (150.0f)    /* 抓取货物时的下降高度 (mm) */
-#define ELEV_HEIGHT_DROP            (100.0f)    /* 释放货物时的安全下降高度 (mm) */
-#define ELEV_HEIGHT_MAX_LIMIT       (3500.0f)   /* 升降机构最大安全物理行程软限位 (mm) */
+/* B. 舵机旋转角度参数 (参数范围: 0 ~ 1000) */
+#define BASE_ROT_POS_START          (100)       /* 底座转向初始抓取点偏角 (舵机1) */
+#define BASE_ROT_POS_BOX            (600)       /* 底座转向卸货货箱点偏角 (舵机1) */
+#define BASE_ROT_MIN_LIMIT          (50)        /* 底座舵机顺时针最小限位角 */
+#define BASE_ROT_MAX_LIMIT          (950)       /* 底座舵机逆时针最大限位角 */
+#define GRAB_ALIGN_POS_START        (100)       /* 抓取点时夹爪水平对齐偏角 (舵机2) */
+#define GRAB_ALIGN_POS_BOX          (400)       /* 卸货点时夹爪对齐缺省值，由变量 g_grab_align_pos_box 动态改写 */
 
-/* B. 水平角度及对齐参数 (总线舵机 1 & 2 - 范围: 0 ~ 1000) */
-#define BASE_ROT_POS_START          (100)       /* 初始对准货物的底盘角度 (舵机1) */
-#define BASE_ROT_POS_BOX            (600)       /* 货箱正上方的底盘旋转角度 (舵机1) */
-#define BASE_ROT_MIN_LIMIT          (50)        /* 底座旋转安全最小限位 */
-#define BASE_ROT_MAX_LIMIT          (950)       /* 底座旋转安全最大限位 */
-#define GRAB_ALIGN_POS_START        (100)       /* 抓取时抓斗的初始对齐朝向 (舵机2) */
-#define GRAB_ALIGN_POS_BOX          (400)       /* 货箱方向抓斗对准角度缺省值 (仅作为上电初值) */
+/* C. 夹爪开合角度参数 (参数范围: 0 ~ 1000) */
+#define GRAB_CLAW_POS_OPEN          (200)       /* 夹爪完全张开时的目标偏角 (舵机3) */
+#define GRAB_CLAW_POS_CLOSE         (750)       /* 夹爪全力咬合时的目标偏角 (舵机3) */
 
-/* C. 爪子完全开合位置 (总线舵机 3 - 范围: 0 ~ 1000) */
-#define GRAB_CLAW_POS_OPEN          (200)       /* 爪子完全张开位置脉冲值 */
-#define GRAB_CLAW_POS_CLOSE         (750)       /* 爪子完全闭合夹紧位置脉冲值 */
+/* D. "顿戳微张式深挖" 特色工艺参数 */
+#define ELEV_FIRST_DIG_DEPTH        (6.0f)      /* 第一阶段下压深挖距离 (mm) */
+#define ELEV_RETRACT_HEIGHT         (8.0f)      /* 回缩微张卸荷距离 (mm) */
+#define ELEV_SECOND_DIG_DEPTH       (15.0f)     /* 第二阶段全力咬合深挖下压距离 (mm) */
+#define CLAW_MID_CLOSE_POS          (450)       /* 第一阶段浅挖时夹爪半闭合目标角 (舵机3) */
+#define CLAW_MID_BACK_POS           (350)       /* 回缩微张时夹爪稍微张开的目标角 (舵机3) */
 
-/* D. "顿戳微张式二次深挖" 专有工艺参数 */
-#define ELEV_FIRST_DIG_DEPTH        (6.0f)      /* 第一次伴随浅压挖掘深度 (mm) */
-#define ELEV_RETRACT_HEIGHT         (8.0f)      /* 第一次压完后，向上抬起释放硬应力的距离 (mm) */
-#define ELEV_SECOND_DIG_DEPTH       (15.0f)     /* 第二次全力深入挖掘压入的绝对深度 (mm) */
-#define CLAW_MID_CLOSE_POS          (450)       /* 第一次下压时，爪子半闭合聚拢角度 (脉冲) */
-#define CLAW_MID_BACK_POS           (350)       /* 抬起释放应力时，爪子微幅向外退回张开的角度 (脉冲) */
+/* E. 运动时间与速度参数 */
+#define STEPPER_SPEED_ELEV          (800)       /* 丝杠升降电机的移动设定速度 (RPM) */
+#define STEPPER_ACC_ELEV            (15)        /* 升降电机的 S 型加减速曲线斜率档位 */
+#define BASE_ROT_DURATION_MS        (1800)      /* 底座转向预估最大耗时 (ms) */
+#define GRAB_ALIGN_DURATION_MS      (800)       /* 夹爪水平对准预估最大耗时 (ms) */
+#define GRAB_CLAW_DURATION_MS       (600)       /* 夹爪全开/全闭动作最大耗时 (ms) */
+#define DELAY_GRAB_SETTLE_MS        (1000)      /* 夹爪全力闭合抓紧后，维持力矩的等待时间 (ms) */
+#define DELAY_DROP_SETTLE_MS        (800)       /* 放置货物手爪张开后，等待颗粒倾倒完毕的静默时间 (ms) */
 
-/* E. 时间与速度配置参数 (S曲线及运动时间) */
-#define STEPPER_SPEED_ELEV          (800)       /* 升降步进电机的移动速度 (RPM) */
-#define STEPPER_ACC_ELEV            (15)        /* 升降电机加减速档位 (0 ~ 15，S曲线平滑防抖) */
-#define BASE_ROT_DURATION_MS        (1800)      /* 底座大范围水平旋转时间 (ms)，缓慢旋转防晃 */
-#define GRAB_ALIGN_DURATION_MS      (800)       /* 抓斗对齐旋转所用时间 (ms) */
-#define GRAB_CLAW_DURATION_MS       (600)       /* 爪子张合运行所用时间 (ms) */
-#define DELAY_GRAB_SETTLE_MS        (1000)      /* 爪子完全咬紧后，起吊前的物理稳定延时 (ms) */
-#define DELAY_DROP_SETTLE_MS        (800)       /* 爪子完全张开后，物料脱开落稳的等待延时 (ms) */
-
-/* F. 到位判定容差 */
-#define TOLERANCE_STEPPER_MM        (1.5f)      /* 步进电机到位判定绝对差值容差 (mm) */
+/* F. 位移判定公差 */
+#define TOLERANCE_STEPPER_MM        (1.5f)      /* 步进升降高度的允许到位判定误差 (mm) */
 ```
 
 ---
 
-## 3. 工艺核心：“顿戳微张式二次深挖”
+## 3. 全自动抓取工艺（10个工步）与“顿戳微张式深挖”工艺
 
-针对很小的豆子颗粒，本状态机在工步 4 中实施了如下控制时序，可大幅增加抓取饱和度并减小机构过载：
-1. **初次下压**：升降降到预备高度后，爪子闭合至 **450**，升降电机同步下压 **6mm** 聚拢豆子。
-2. **顿戳微张**：升降电机**向上抬起 8mm** 以释放阻力应力，同时爪子**向外微退至 350**。局部豆堆压力被释放，在重力作用下发生流动坍塌，顺畅填满爪内空腔。
-3. **二次咬死**：等待 150ms 后，升降电机**向下全力深压 15mm**（探底），同时爪子以最大扭矩**闭合至 750** 彻底咬死提吊。
+输入 `seq` 指令触发后，起重机自动流转执行以下 10 个动作工步：
+1.  **工步 1 (SYS_TASK_STEP_1_RAISE_SAFE)**：升降滑块自动移至安全高度（20mm），避开转弯时的机械障碍。
+2.  **工步 2 (SYS_TASK_STEP_2_OPEN_CLAW)**：底座转向初始抓取点，同时夹爪全力张开（200），对齐对准角度。
+3.  **工步 3 (SYS_TASK_STEP_3_DESCEND_GRAB)**：滑块垂直下降至抓取预备点（150mm）。
+4.  **工步 4 (SYS_TASK_STEP_4_1_FIRST_DIG)**：**[微挖下压]** 夹爪半闭合至 **450**（浅挖），滑块在抓取预备点上继续下压 **6mm** 戳入料斗。
+5.  **工步 5 (SYS_TASK_STEP_4_2_RETRACT_SETTLE)**：**[抬升微张]** 滑块上抬 **8mm**，同时夹爪稍退张开至 **350**，使料斗内结拱卡死的豆子坍塌以填满斗瓣。
+6.  **工步 6 (SYS_TASK_STEP_4_3_SECOND_DIG_LOCK)**：**[深挖死咬]** 滑块再次全力深压下挫 **15mm**，夹爪闭合至最大值 **750** 咬死货物，延时稳定。
+7.  **工步 7 (SYS_TASK_STEP_5_RAISE_SAFE)**：夹爪保持抓死，滑块快速回缩提升至安全高度（20mm）。
+8.  **工步 8 (SYS_TASK_STEP_6_ROTATE_TO_BOX)**：底座转向卸货货箱点（ID1 移至 600），夹爪自适应角度对齐。
+9.  **工步 9 (SYS_TASK_STEP_7_DESCEND_DROP)**：滑块垂直下降至放货高度（100mm）。
+10. **工步 10 (SYS_TASK_STEP_8_RELEASE_CLAW)**：夹爪完全张开，静待物料倒出后，滑块升回安全高度，底座返回抓取点，系统重归 READY。
 
 ---
 
-## 4. 后续系统集成移植指南 (待进一步操作)
+## 4. 全局工作模式运行机制
 
-为了不改变您当前写好的其他程序，我们只在新文件夹中生成了上述代码。当您过目完毕准备开始集成时，仅需按如下三步修改原有工程：
+本系统将运行模式解耦，并在到位流转函数 `transition_to_next_step` 中融入了如下双模拦截逻辑：
 
-### 步骤 A: 定时中断接口挂载
-在您的 `main.c` 里的 TIM3 定时器中断回调函数 `HAL_TIM_PeriodElapsedCallback` 中挂载计数递减与 50ms 更新分发：
+### A. 自动运行模式 (SYS_MODE_AUTO)
+*   **出厂与上电默认状态**：上电复位后，系统默认工作在此模式。
+*   **控制逻辑**：接收到 `seq` 命令后，主循环状态机每 50ms 自动在后台流转跳转，连续、不停顿地执行完所有 10 步动作直到复位。
 
+### B. 手动调试模式 (SYS_MODE_MANUAL)
+*   **切换方式**：在调试控制台输入 `mode manual` 指令随时切入。
+*   **控制逻辑**：此模式下，即使您输入 `seq` 触发了循环，状态机也会在**每一个单一工步动作执行完毕到位后，立刻进行强制挂起拦截**，系统退回 `READY`，等待您的下一步指令，适合前期调试。
+
+---
+
+## 5. 调试控制台 CLI 串口指令大全 (波特率 115200)
+
+请在串口助手（USART3 接口）中发送以下指令（请勾选“发送新行/回车”）：
+
+### 状态机与电机核心控制：
+*   **`seq`**：启动一轮全自动抓取搬运工艺序列（若在手动模式下，仅触发执行第一步）。
+*   **`next`**：**[顺次单步指令]** 自动推算并触发运行下一步动作。例如连续输入 `next` 发送，即可顺次一步一步驱动起重机完成全部动作，调试极为丝滑。
+*   **`step <1~10>`**：强制触发执行第 1 至第 10 步指定的单一工步动作，到位后自动暂停拦截。
+*   **`mode <auto/manual>`**：动态切换系统工作模式（默认 auto）。
+*   **`motor_pos <pos> <speed>`**：**[Emm_V5 步进控制]** 控制升降电机向绝对位置 `pos` (mm) 位移，最大速度 `speed` (RPM)。
+*   **`set_align <pos>`**：动态调整卸货对准偏角变量 `g_grab_align_pos_box` (范围 0~1000)。
+*   **`status`**：遥测打印系统运行模式、前级状态、实时高度、底座偏角、对齐角度、夹爪角度及它们的在线通信状况。
+
+### 舵机独立硬件操作：
+*   **`pos <id> <pos> <time>`**：控制指定 ID (1,2,3) 的总线舵机在 `time` (ms) 内转动到目标位置 `pos` (0~1000)。
+*   **`read <id>`**：强行读回指定 ID 舵机的当前角度、当前电压以及芯片温度。
+*   **`stop <id>`**：下发紧急制动指令。
+*   **`free <id>`**：释放舵机力矩，进入手动示教模式。
+*   **`lock <id>`**：锁定舵机力矩。
+
+---
+
+## 6. 工程挂载与移植细节说明
+
+为了使您的 Keil 工程能够正确整合新驱动并支持状态机调度，代码中已完成以下改动和挂载：
+
+### A. 移除与添加编译文件 (Keil 工程树操作)
+1.  **废除旧 ZDT 电机库**：在项目组中找到 `Control.c` 和 `Data.c` 并移出编译组（Remove）。
+2.  **添加 Emm_V5 与状态机文件**：
+    - 将 `Emm_V5_stepper` 组中的 `Emm_V5.c` 与 `app_stepper_ctrl.c` 添加进编译。
+    - 将 `crane_system_fsm` 组中的 `app_servo_fsm.c` 与 `app_system_fsm.c` 添加进编译。
+
+### B. 时钟周期中断服务函数挂载 (`main.c`)
+在 `main.c` 的 TIM3 中断服务中已正确配置 10ms 递减及 50ms 降频节拍分发：
 ```c
-/* 引入系统状态机头文件 */
-#include "../crane_system_fsm/app_system_fsm.h"
-
-// 计时变量累加器
-static uint8_t fsm_div_counter = 0;
-
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
     if (htim->Instance == TIM3)
     {
-        // 1. 每 5 次 10ms 中断（即 50ms），将更新标志置 1 一次
-        fsm_div_counter++;
-        if (fsm_div_counter >= 5)
-        {
-            fsm_div_counter = 0;
-            g_fsm_update_flag = 1;
-        }
-        
-        // 2. 软件计时器以 10ms 步长自动递减
+        /* 1. 软件定时计数器递减 (10ms 节拍) */
         if (g_servo_reply_timeout_counter > 0) {
             g_servo_reply_timeout_counter--;
         }
@@ -110,82 +137,32 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         if (g_settle_delay_counter > 0) {
             g_settle_delay_counter--;
         }
-    }
-}
-```
 
-### 步骤 B: 主循环 Process 与初始化挂载
-在 `main.c` 的主入口中挂载初始化与轮询处理：
-
-```c
-int main(void)
-{
-    // ... 原有初始化代码 ...
-    
-    // 初始化起重状态机
-    System_FSM_Init();
-    
-    while (1)
-    {
-        // 原有 Debug_CLI_Process() 等轮询
-        Debug_CLI_Process();
-        
-        // 以 50ms 稳定节拍调用状态机核心 Process
-        if (g_fsm_update_flag)
+        /* 2. 降频分频，当累加到 50ms (20Hz) 时将刷新标志置位 */
+        static uint8_t tick_divider = 0;
+        tick_divider++;
+        if (tick_divider >= 5)
         {
-            g_fsm_update_flag = 0;
-            System_FSM_Process();
+            tick_divider = 0;
+            g_fsm_update_flag = 1;
         }
     }
 }
 ```
 
-### 步骤 C: 上位机串口输入接口挂载 (CLI命令扩展)
-在您的 `serial_servo_debug_cli.c` 的 `Debug_CLI_Process` 解析逻辑中，新增如下分支指令以供上位机连接：
-
+### C. 主循环状态机轮询挂载 (`main.c`)
+在 `main.c` 循环的 `while (1)` 中已剔除阻塞语句，改写为以下非阻塞处理：
 ```c
-#include "../crane_system_fsm/app_system_fsm.h"
+  while (1)
+  {
+      /* 1. 串口 3 命令行交互处理器 */
+      Debug_CLI_Process();
 
-// 在交互控制命令行处理分支中添加：
-if (strcmp(cmd, "set_align") == 0) {
-    char *p1 = strtok(NULL, " ");
-    if (p1) {
-        int pos = atoi(p1);
-        // 调用状态机留好的上位机动态输入接口
-        System_FSM_SetGrabAlignPos((uint16_t)pos);
-    } else {
-        printf(">> 参数错误! 格式应为: set_align <pos>\r\n");
-    }
-}
-else if (strcmp(cmd, "status") == 0) {
-    // 统一状态一键打印回显
-    static char status_buf[600];
-    System_FSM_GetStatusString(status_buf, sizeof(status_buf));
-    printf("%s", status_buf);
-}
-else if (strcmp(cmd, "seq") == 0) {
-    // 一键运行连续联动搬运流程
-    uint8_t ok = System_FSM_StartSequence();
-    if (!ok) {
-        printf(">> [警告]: 系统未处于 READY 状态，拒绝执行序列搬运动作。\r\n");
-    }
-}
-else if (strcmp(cmd, "step") == 0) {
-    char *p1 = strtok(NULL, " ");
-    if (p1) {
-        int step_num = atoi(p1);
-        // 调用状态机单步执行接口
-        uint8_t ok = System_FSM_StartSingleStep((uint8_t)step_num);
-        if (!ok) {
-            printf(">> [警告]: 系统未就绪或步骤号 %d 错误，拒绝执行单步动作。\r\n", step_num);
-        }
-    } else {
-        printf(">> 参数错误! 格式应为: step <1~10>\r\n");
-    }
-}
-else if (strcmp(cmd, "estop") == 0) {
-    // 紧急停车
-    System_FSM_EmergencyStop();
-    printf(">> [ESTOP]: 起重器已紧急停车并断电力矩！\r\n");
-}
+      /* 2. 状态机 50ms 节拍非阻塞查询更新 */
+      if (g_fsm_update_flag)
+      {
+          g_fsm_update_flag = 0;
+          System_FSM_Process();
+      }
+  }
 ```

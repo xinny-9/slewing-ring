@@ -1,504 +1,504 @@
-/**
- * *****************************************************************************
- * @file    serial_servo.c
- * @author  Antigravity
- * @brief   ä¸²å£æ€»çº¿èˆµæœºæ ¸å¿ƒåè®®æ¥å£å®ç°æ–‡ä»¶ (çº¯åè®®å±‚ï¼Œä¸åº•å±‚ç¡¬ä»¶å®Œå…¨è§£è€¦)
- * *****************************************************************************
- */
-
-#include "serial_servo.h"
-#include <string.h>
-
-#define GET_LOW_BYTE(A)  ((uint8_t)(A))           
-#define GET_HIGH_BYTE(A) ((uint8_t)((A) >> 8))     
-#define BYTE_TO_HW(A, B) ((((uint16_t)(A)) << 8) | (uint8_t)(B)) 
-
-/**
- * ============================================================================
- * @brief   å‘½ä»¤å¸§åˆå§‹åŒ–å‡½æ•°(é™æ€)
- * @details åˆå§‹åŒ–ä¸€ä¸ªä¸²å£èˆµæœºé€šä¿¡åè®®çš„å‘½ä»¤å¸§ç»“æ„ä½“ï¼Œè®¾ç½®å¸§å¤´å’ŒåŸºæœ¬ä¿¡æ¯
- * @param   frame    - æŒ‡å‘å‘½ä»¤å¸§ç»“æ„ä½“çš„æŒ‡é’ˆ
- * @param   servo_id - ç›®æ ‡èˆµæœºçš„ID
- * @param   cmd      - è¦å‘é€çš„å‘½ä»¤å­—èŠ‚
- * @return  æ— 
- * @note    è¿™æ˜¯ä¸€ä¸ªå†…éƒ¨è¾…åŠ©å‡½æ•°ï¼Œç”¨äºæ‰€æœ‰å‘½ä»¤å‘é€å‰çš„å¸§æ ¼å¼åˆå§‹åŒ–
- * ============================================================================
- */
-static void cmd_frame_init(SerialServoCmdTypeDef *frame, uint8_t servo_id, uint8_t cmd)
-{
-    frame->header_1 = SERIAL_SERVO_FRAME_HEADER;  // è®¾ç½®ç¬¬ä¸€ä¸ªå¸§å¤´
-    frame->header_2 = SERIAL_SERVO_FRAME_HEADER;  // è®¾ç½®ç¬¬äºŒä¸ªå¸§å¤´
-    frame->elements.servo_id = servo_id;          // è®¾ç½®ç›®æ ‡èˆµæœºID
-    frame->elements.command = cmd;                // è®¾ç½®å‘½ä»¤å­—èŠ‚
-}
-
-/**
- * ============================================================================
- * @brief   å‘½ä»¤å¸§å®Œæˆå‡½æ•°(é™æ€)
- * @details è®¡ç®—å¹¶è®¾ç½®å‘½ä»¤å¸§çš„æ•°æ®é•¿åº¦å’Œæ ¡éªŒå’Œï¼Œä½¿å¸§æˆä¸ºå¯å‘é€çŠ¶æ€
- * @param   frame    - æŒ‡å‘å‘½ä»¤å¸§ç»“æ„ä½“çš„æŒ‡é’ˆ
- * @param   args_num - æœ¬æ¡å‘½ä»¤åŒ…å«çš„å‚æ•°ä¸ªæ•°
- * @return  æ— 
- * @note    å¿…é¡»åœ¨æ‰€æœ‰å‚æ•°å¡«å……å®Œæ¯•åè°ƒç”¨æ­¤å‡½æ•°ï¼Œä»¥å®Œå–„å¸§çš„é•¿åº¦å’Œæ ¡éªŒå­—æ®µ
- * ============================================================================
- */
-static void cmd_frame_complete(SerialServoCmdTypeDef *frame, uint8_t args_num)
-{
-    frame->elements.length = args_num + 3;  // é•¿åº¦ = å‚æ•°æ•° + èˆµæœºID + å‘½ä»¤ + é•¿åº¦å­—æ®µ
-    frame->elements.args[args_num] = serial_servo_checksum((uint8_t*)frame);  // è®¡ç®—å¹¶å¡«å…¥æ ¡éªŒå’Œ
-}
-
-/**
- * ============================================================================
- * @brief   è®¾ç½®èˆµæœºID
- * @details æ”¹å˜æŒ‡å®šèˆµæœºçš„IDå·ï¼Œéœ€è¦æä¾›æ—§IDä»¥å®šä½è¯¥èˆµæœº
- * @param   self   - æŒ‡å‘èˆµæœºæ§åˆ¶å™¨çš„æŒ‡é’ˆ
- * @param   old_id - èˆµæœºçš„å½“å‰ID
- * @param   new_id - è¦è®¾ç½®çš„æ–°ID
- * @return  æ— 
- * @note    è®¾ç½®åéœ€è¦é‡å¯èˆµæœºæ‰èƒ½ç”Ÿæ•ˆï¼›æ–°IDèŒƒå›´åº”ä¸º0-253
- * ============================================================================
- */
-void serial_servo_set_id(SerialServoControllerTypeDef *self, uint32_t old_id, uint32_t new_id)
-{
-    SerialServoCmdTypeDef frame;
-    cmd_frame_init(&frame, (uint8_t)old_id, SERIAL_SERVO_ID_WRITE);  // ä½¿ç”¨æ—§IDæ¥å¯»å€
-    frame.elements.args[0] = (uint8_t)new_id;                         // è®¾ç½®æ–°ID
-    cmd_frame_complete(&frame, 1);                                   // å®Œæˆå¸§ï¼Œ1ä¸ªå‚æ•°
-    self->serial_write_and_read(self, &frame, true);                 // å‘é€å‘½ä»¤ï¼ˆåªå†™ï¼Œä¸éœ€è¦è¯»å“åº”ï¼‰
-}
-
-/**
- * ============================================================================
- * @brief   è¯»å–èˆµæœºID
- * @details æŸ¥è¯¢æŒ‡å®šèˆµæœºå½“å‰çš„IDå·ï¼Œç”¨äºéªŒè¯æˆ–ç¡®è®¤èˆµæœºæ ‡è¯†
- * @param   self        - æŒ‡å‘èˆµæœºæ§åˆ¶å™¨çš„æŒ‡é’ˆ
- * @param   servo_id    - ç›®æ ‡èˆµæœºçš„ID
- * @param   ret_servo_id - æŒ‡å‘è¿”å›ç»“æœçš„æŒ‡é’ˆï¼Œå­˜å‚¨è¯»å›çš„ID
- * @return  0è¡¨ç¤ºæˆåŠŸè¯»å–ï¼Œ-1è¡¨ç¤ºé€šä¿¡å¤±è´¥
- * @note    è¯»å–å¤±è´¥å¯èƒ½åŸå› ï¼šé€šä¿¡è¶…æ—¶ã€èˆµæœºä¸å­˜åœ¨æˆ–æ— å“åº”
- * ============================================================================
- */
-int serial_servo_read_id(SerialServoControllerTypeDef *self, uint32_t servo_id, uint8_t *ret_servo_id)
-{
-    SerialServoCmdTypeDef frame;
-    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_ID_READ);  // åˆå§‹åŒ–è¯»IDå‘½ä»¤
-    cmd_frame_complete(&frame, 0);                                   // å®Œæˆå¸§ï¼Œæ— å‚æ•°
-    if (0 == self->serial_write_and_read(self, &frame, false)) {     // å‘é€å¹¶ç­‰å¾…å“åº”
-        *ret_servo_id = self->rx_frame.elements.args[0];             // æå–å“åº”ä¸­çš„ID
-        return 0;                                                     // è¿”å›æˆåŠŸ
-    }
-    return -1;                                                        // è¿”å›å¤±è´¥
-}
-
-/**
- * ============================================================================
- * @brief   è®¾ç½®èˆµæœºä½ç½®å’Œè¿åŠ¨æ—¶é—´
- * @details å‘½ä»¤èˆµæœºåœ¨æŒ‡å®šæ—¶é—´å†…ç§»åŠ¨åˆ°ç›®æ ‡ä½ç½®ï¼Œå®ç°å¹³æ»‘çš„èˆµæœºè¿åŠ¨
- * @param   self     - æŒ‡å‘èˆµæœºæ§åˆ¶å™¨çš„æŒ‡é’ˆ
- * @param   servo_id - ç›®æ ‡èˆµæœºçš„ID
- * @param   position - ç›®æ ‡ä½ç½®ï¼ŒèŒƒå›´0-1000ï¼Œå¯¹åº”èˆµæœºçš„å…¨è¡Œç¨‹
- * @param   duration - è¿åŠ¨æ—¶é—´(æ¯«ç§’)ï¼Œå†³å®šèˆµæœºç§»åŠ¨é€Ÿåº¦
- * @return  æ— 
- * @note    positionä¼šè‡ªåŠ¨é™åˆ¶åœ¨0-1000èŒƒå›´å†…ï¼›durationçš„æœ‰æ•ˆèŒƒå›´é€šå¸¸ä¸º0-5000ms
- * ============================================================================
- */
-void serial_servo_set_position(SerialServoControllerTypeDef *self, uint32_t servo_id, int position, uint32_t duration)
-{
-    SerialServoCmdTypeDef frame;
-    // é™åˆ¶positionåœ¨æœ‰æ•ˆèŒƒå›´[0, 1000]
-    if (position > 1000) position = 1000;  // ä¸Šé™é™åˆ¶
-    if (position < 0)    position = 0;     // ä¸‹é™é™åˆ¶
-    
-    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_MOVE_TIME_WRITE);  // åˆå§‹åŒ–è®¾ç½®ä½ç½®å‘½ä»¤
-    frame.elements.args[0] = GET_LOW_BYTE(position);    // ä½ç½®ä½byte
-    frame.elements.args[1] = GET_HIGH_BYTE(position);   // ä½ç½®é«˜byte
-    frame.elements.args[2] = GET_LOW_BYTE(duration);    // æ—¶é—´ä½byte
-    frame.elements.args[3] = GET_HIGH_BYTE(duration);   // æ—¶é—´é«˜byte
-    cmd_frame_complete(&frame, 4);                      // å®Œæˆå¸§ï¼Œ4ä¸ªå‚æ•°
-    self->serial_write_and_read(self, &frame, true);    // å‘é€å‘½ä»¤ï¼ˆåªå†™ï¼‰
-}
-
-/**
- * ============================================================================
- * @brief   è¯»å–èˆµæœºå½“å‰ä½ç½®
- * @details æŸ¥è¯¢èˆµæœºçš„å®æ—¶ä½ç½®ä¿¡æ¯ï¼Œç”¨äºçŠ¶æ€åé¦ˆå’Œä½ç½®éªŒè¯
- * @param   self     - æŒ‡å‘èˆµæœºæ§åˆ¶å™¨çš„æŒ‡é’ˆ
- * @param   servo_id - ç›®æ ‡èˆµæœºçš„ID
- * @param   position - æŒ‡å‘å­˜å‚¨ä½ç½®çš„æŒ‡é’ˆï¼ŒèŒƒå›´0-1000
- * @return  0è¡¨ç¤ºæˆåŠŸè¯»å–ï¼Œ-1è¡¨ç¤ºé€šä¿¡å¤±è´¥
- * @note    è¿”å›çš„positionå€¼èŒƒå›´ä¸º0-1000ï¼Œå¯¹åº”èˆµæœºçš„å…¨è¡Œç¨‹
- * ============================================================================
- */
-int serial_servo_read_position(SerialServoControllerTypeDef *self, uint32_t servo_id, int16_t *position)
-{
-    SerialServoCmdTypeDef frame;
-    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_POS_READ);  // åˆå§‹åŒ–è¯»ä½ç½®å‘½ä»¤
-    cmd_frame_complete(&frame, 0);                                    // å®Œæˆå¸§ï¼Œæ— å‚æ•°
-    if (0 == self->serial_write_and_read(self, &frame, false)) {      // å‘é€å¹¶ç­‰å¾…å“åº”
-        // å°†ä¸¤ä¸ªbyteåˆæˆ16ä½position
-        *position = (int16_t)BYTE_TO_HW(self->rx_frame.elements.args[1], self->rx_frame.elements.args[0]);
-        return 0;                                                      // è¿”å›æˆåŠŸ
-    }
-    return -1;                                                         // è¿”å›å¤±è´¥
-}
-
-/**
- * ============================================================================
- * @brief   åœæ­¢èˆµæœºè¿åŠ¨
- * @details ç«‹å³åœæ­¢æŒ‡å®šèˆµæœºçš„è¿åŠ¨ï¼Œèˆµæœºä¿æŒå½“å‰ä½ç½®
- * @param   self     - æŒ‡å‘èˆµæœºæ§åˆ¶å™¨çš„æŒ‡é’ˆ
- * @param   servo_id - ç›®æ ‡èˆµæœºçš„ID
- * @return  æ— 
- * @note    åœæ­¢ç«‹å³ç”Ÿæ•ˆï¼Œèˆµæœºå°†é”å®šåœ¨æ¥æ”¶åˆ°æ­¤å‘½ä»¤æ—¶çš„ä½ç½®
- * ============================================================================
- */
-void serial_servo_stop(SerialServoControllerTypeDef *self, uint32_t servo_id)
-{
-    SerialServoCmdTypeDef frame;
-    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_MOVE_STOP);  // åˆå§‹åŒ–åœæ­¢å‘½ä»¤
-    cmd_frame_complete(&frame, 0);                                     // å®Œæˆå¸§ï¼Œæ— å‚æ•°
-    self->serial_write_and_read(self, &frame, true);                   // å‘é€å‘½ä»¤ï¼ˆåªå†™ï¼‰
-}
-
-/**
- * ============================================================================
- * @brief   è®¾ç½®èˆµæœºè§’åº¦åå·®
- * @details é€šè¿‡å¾®è°ƒåå·®å€¼æ¥çº æ­£èˆµæœºçš„æœºæ¢°é›¶ç‚¹åå·®ï¼Œæé«˜æ§åˆ¶ç²¾åº¦
- * @param   self          - æŒ‡å‘èˆµæœºæ§åˆ¶å™¨çš„æŒ‡é’ˆ
- * @param   servo_id      - ç›®æ ‡èˆµæœºçš„ID
- * @param   new_deviation - æ–°çš„åå·®å€¼ï¼ŒèŒƒå›´-125åˆ°+125
- * @return  æ— 
- * @note    åå·®å€¼ä¸ºæœ‰ç¬¦å·æ•´æ•°ï¼Œéœ€è¦è°ƒç”¨serial_servo_save_deviation()æ‰èƒ½æ°¸ä¹…ä¿å­˜
- * ============================================================================
- */
-void serial_servo_set_deviation(SerialServoControllerTypeDef *self, uint32_t servo_id, int new_deviation)
-{
-    SerialServoCmdTypeDef frame;
-    // é™åˆ¶deviationåœ¨æœ‰æ•ˆèŒƒå›´[-125, +125]
-    if (new_deviation > 125)  new_deviation = 125;      // ä¸Šé™é™åˆ¶
-    if (new_deviation < -125) new_deviation = -125;     // ä¸‹é™é™åˆ¶
-    
-    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_ANGLE_OFFSET_ADJUST);  // åˆå§‹åŒ–åå·®è°ƒæ•´å‘½ä»¤
-    frame.elements.args[0] = (uint8_t)((int8_t)new_deviation);  // è½¬ä¸º8ä½æœ‰ç¬¦å·æ•´æ•°
-    cmd_frame_complete(&frame, 1);                              // å®Œæˆå¸§ï¼Œ1ä¸ªå‚æ•°
-    self->serial_write_and_read(self, &frame, true);            // å‘é€å‘½ä»¤ï¼ˆåªå†™ï¼‰
-}
-
-/**
- * ============================================================================
- * @brief   è¯»å–èˆµæœºè§’åº¦åå·®
- * @details è¯»å–èˆµæœºå½“å‰çš„è§’åº¦åå·®å€¼ï¼Œç”¨äºéªŒè¯é›¶ç‚¹æ ¡å‡†çŠ¶æ€
- * @param   self      - æŒ‡å‘èˆµæœºæ§åˆ¶å™¨çš„æŒ‡é’ˆ
- * @param   servo_id  - ç›®æ ‡èˆµæœºçš„ID
- * @param   deviation - æŒ‡å‘å­˜å‚¨åå·®å€¼çš„æŒ‡é’ˆ
- * @return  0è¡¨ç¤ºæˆåŠŸè¯»å–ï¼Œ-1è¡¨ç¤ºé€šä¿¡å¤±è´¥
- * @note    è¿”å›å€¼èŒƒå›´ä¸è®¾ç½®èŒƒå›´ä¸€è‡´ï¼š-125åˆ°+125
- * ============================================================================
- */
-int serial_servo_read_deviation(SerialServoControllerTypeDef *self, uint32_t servo_id, int8_t *deviation)
-{
-    SerialServoCmdTypeDef frame;
-    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_ANGLE_OFFSET_READ);  // åˆå§‹åŒ–è¯»åå·®å‘½ä»¤
-    cmd_frame_complete(&frame, 0);                                            // å®Œæˆå¸§ï¼Œæ— å‚æ•°
-    if (0 == self->serial_write_and_read(self, &frame, false)) {              // å‘é€å¹¶ç­‰å¾…å“åº”
-        *deviation = (int8_t)self->rx_frame.elements.args[0];                 // è½¬ä¸º8ä½æœ‰ç¬¦å·æ•´æ•°
-        return 0;                                                              // è¿”å›æˆåŠŸ
-    }
-    return -1;                                                                 // è¿”å›å¤±è´¥
-}
-
-/**
- * ============================================================================
- * @brief   ä¿å­˜èˆµæœºè§’åº¦åå·®åˆ°EEPROM
- * @details å°†å½“å‰çš„è§’åº¦åå·®å€¼æ°¸ä¹…ä¿å­˜åˆ°èˆµæœºçš„éæ˜“å¤±æ€§å­˜å‚¨å™¨ä¸­
- * @param   self     - æŒ‡å‘èˆµæœºæ§åˆ¶å™¨çš„æŒ‡é’ˆ
- * @param   servo_id - ç›®æ ‡èˆµæœºçš„ID
- * @return  æ— 
- * @note    å¿…é¡»å…ˆè°ƒç”¨serial_servo_set_deviation()è®¾ç½®åå·®ï¼Œå†è°ƒç”¨æœ¬å‡½æ•°ä¿å­˜
- * ============================================================================
- */
-void serial_servo_save_deviation(SerialServoControllerTypeDef *self, uint32_t servo_id)
-{
-    SerialServoCmdTypeDef frame;
-    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_ANGLE_OFFSET_WRITE);  // åˆå§‹åŒ–ä¿å­˜åå·®å‘½ä»¤
-    cmd_frame_complete(&frame, 0);                                             // å®Œæˆå¸§ï¼Œæ— å‚æ•°
-    self->serial_write_and_read(self, &frame, true);                           // å‘é€å‘½ä»¤ï¼ˆåªå†™ï¼‰
-}
-
-/**
- * ============================================================================
- * @brief   è®¾ç½®èˆµæœºè´Ÿè½½çŠ¶æ€ï¼ˆé”å®š/è§£é”ï¼‰
- * @details æ§åˆ¶èˆµæœºç”µæœºçš„ä¾›ç”µçŠ¶æ€ï¼Œé”å®šæ—¶èˆµæœºä¿æŒå½“å‰ä½ç½®ï¼Œè§£é”æ—¶èˆµæœºå¯è¢«å¤–åŠ›è½¬åŠ¨
- * @param   self     - æŒ‡å‘èˆµæœºæ§åˆ¶å™¨çš„æŒ‡é’ˆ
- * @param   servo_id - ç›®æ ‡èˆµæœºçš„ID
- * @param   load     - è´Ÿè½½çŠ¶æ€ï¼š0è¡¨ç¤ºè§£é”(æ— æ‰­çŸ©)ï¼Œ1è¡¨ç¤ºé”å®š(æœ‰æ‰­çŸ©)
- * @return  æ— 
- * @note    è§£é”æ—¶èˆµæœºä¸ä¼šä¿æŒä½ç½®ï¼Œä½†ä¼šé™ä½åŠŸè€—å’Œå‘çƒ­
- * ============================================================================
- */
-void serial_servo_load_unload(SerialServoControllerTypeDef *self, uint32_t servo_id, uint32_t load)
-{
-    SerialServoCmdTypeDef frame;
-    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_LOAD_OR_UNLOAD_WRITE);  // åˆå§‹åŒ–è´Ÿè½½è®¾ç½®å‘½ä»¤
-    frame.elements.args[0] = (uint8_t)load;  // 0=è§£é”, 1=é”å®š
-    cmd_frame_complete(&frame, 1);           // å®Œæˆå¸§ï¼Œ1ä¸ªå‚æ•°
-    self->serial_write_and_read(self, &frame, true);  // å‘é€å‘½ä»¤ï¼ˆåªå†™ï¼‰
-}
-
-/**
- * ============================================================================
- * @brief   è¯»å–èˆµæœºè´Ÿè½½çŠ¶æ€
- * @details æŸ¥è¯¢èˆµæœºå½“å‰çš„é”å®š/è§£é”çŠ¶æ€
- * @param   self       - æŒ‡å‘èˆµæœºæ§åˆ¶å™¨çš„æŒ‡é’ˆ
- * @param   servo_id   - ç›®æ ‡èˆµæœºçš„ID
- * @param   load_unload - æŒ‡å‘å­˜å‚¨çŠ¶æ€çš„æŒ‡é’ˆï¼š0è¡¨ç¤ºè§£é”ï¼Œ1è¡¨ç¤ºé”å®š
- * @return  0è¡¨ç¤ºæˆåŠŸè¯»å–ï¼Œ-1è¡¨ç¤ºé€šä¿¡å¤±è´¥
- * ============================================================================
- */
-int serial_servo_read_load_unload(SerialServoControllerTypeDef *self, uint32_t servo_id, uint8_t* load_unload)
-{
-    SerialServoCmdTypeDef frame;
-    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_LOAD_OR_UNLOAD_READ);  // åˆå§‹åŒ–è¯»è´Ÿè½½å‘½ä»¤
-    cmd_frame_complete(&frame, 0);                                              // å®Œæˆå¸§ï¼Œæ— å‚æ•°
-    if (0 == self->serial_write_and_read(self, &frame, false)) {                // å‘é€å¹¶ç­‰å¾…å“åº”
-        *load_unload = self->rx_frame.elements.args[0];                         // æå–è´Ÿè½½çŠ¶æ€
-        return 0;                                                                // è¿”å›æˆåŠŸ
-    }
-    return -1;                                                                   // è¿”å›å¤±è´¥
-}
-
-/**
- * ============================================================================
- * @brief   è®¾ç½®èˆµæœºè§’åº¦é™åˆ¶èŒƒå›´
- * @details é™åˆ¶èˆµæœºçš„æ´»åŠ¨èŒƒå›´ï¼Œèˆµæœºæ— æ³•è¶…å‡ºè®¾å®šçš„è§’åº¦ç•Œé™ï¼Œæä¾›æœºæ¢°ä¿æŠ¤
- * @param   self     - æŒ‡å‘èˆµæœºæ§åˆ¶å™¨çš„æŒ‡é’ˆ
- * @param   servo_id - ç›®æ ‡èˆµæœºçš„ID
- * @param   limit_l  - ä¸‹é™ä½ç½®ï¼ŒèŒƒå›´0-1000
- * @param   limit_h  - ä¸Šé™ä½ç½®ï¼ŒèŒƒå›´0-1000
- * @return  æ— 
- * @note    è‡ªåŠ¨çº æ­£å‚æ•°å¤§å°å…³ç³»ï¼ˆè‹¥limit_l > limit_håˆ™è‡ªåŠ¨äº¤æ¢ï¼‰ï¼›
- *          å€¼é™åˆ¶åœ¨0-1000èŒƒå›´å†…ï¼›éœ€ä¿å­˜æ‰èƒ½æ°¸ä¹…æœ‰æ•ˆ
- * ============================================================================
- */
-void serial_servo_set_angle_limit(SerialServoControllerTypeDef *self, uint32_t servo_id, uint32_t limit_l, uint32_t limit_h)
-{
-    SerialServoCmdTypeDef frame;
-    // é™åˆ¶æ‰€æœ‰å€¼åœ¨0-1000èŒƒå›´å†…
-    if (limit_l > 1000) limit_l = 1000;
-    if (limit_h > 1000) limit_h = 1000;
-    
-    // è‡ªåŠ¨çº æ­£ä¸Šä¸‹é™å…³ç³»ï¼Œç¡®ä¿limit_l < limit_h
-    uint32_t real_limit_l = (limit_l > limit_h) ? limit_h : limit_l;  // ç¡®ä¿ä¸ºè¾ƒå°å€¼
-    uint32_t real_limit_h = (limit_l > limit_h) ? limit_l : limit_h;  // ç¡®ä¿ä¸ºè¾ƒå¤§å€¼
-    
-    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_ANGLE_LIMIT_WRITE);  // åˆå§‹åŒ–è§’åº¦é™åˆ¶å‘½ä»¤
-    frame.elements.args[0] = GET_LOW_BYTE(real_limit_l);    // ä¸‹é™ä½byte
-    frame.elements.args[1] = GET_HIGH_BYTE(real_limit_l);   // ä¸‹é™é«˜byte
-    frame.elements.args[2] = GET_LOW_BYTE(real_limit_h);    // ä¸Šé™ä½byte
-    frame.elements.args[3] = GET_HIGH_BYTE(real_limit_h);   // ä¸Šé™é«˜byte
-    cmd_frame_complete(&frame, 4);                          // å®Œæˆå¸§ï¼Œ4ä¸ªå‚æ•°
-    self->serial_write_and_read(self, &frame, true);        // å‘é€å‘½ä»¤ï¼ˆåªå†™ï¼‰
-}
-
-/**
- * ============================================================================
- * @brief   è¯»å–èˆµæœºè§’åº¦é™åˆ¶èŒƒå›´
- * @details æŸ¥è¯¢èˆµæœºå½“å‰è®¾å®šçš„è§’åº¦é™åˆ¶å€¼
- * @param   self     - æŒ‡å‘èˆµæœºæ§åˆ¶å™¨çš„æŒ‡é’ˆ
- * @param   servo_id - ç›®æ ‡èˆµæœºçš„ID
- * @param   limit    - æŒ‡å‘æ•°ç»„çš„æŒ‡é’ˆï¼Œ[0]å­˜å‚¨ä¸‹é™ï¼Œ[1]å­˜å‚¨ä¸Šé™
- * @return  0è¡¨ç¤ºæˆåŠŸè¯»å–ï¼Œ-1è¡¨ç¤ºé€šä¿¡å¤±è´¥
- * @note    è¿”å›æ•°ç»„ä¸­ limit[0]=ä¸‹é™, limit[1]=ä¸Šé™
- * ============================================================================
- */
-int serial_servo_read_angle_limit(SerialServoControllerTypeDef *self, uint32_t servo_id, uint16_t limit[2])
-{
-    SerialServoCmdTypeDef frame;
-    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_ANGLE_LIMIT_READ);  // åˆå§‹åŒ–è¯»è§’åº¦é™åˆ¶å‘½ä»¤
-    cmd_frame_complete(&frame, 0);                                            // å®Œæˆå¸§ï¼Œæ— å‚æ•°
-    if (0 == self->serial_write_and_read(self, &frame, false)) {              // å‘é€å¹¶ç­‰å¾…å“åº”
-        // ç»„åˆä¸¤ä¸ªbyteä¸º16ä½å€¼ï¼Œå­˜å‚¨ä¸‹é™
-        limit[0] = BYTE_TO_HW(self->rx_frame.elements.args[1], self->rx_frame.elements.args[0]);
-        // ç»„åˆä¸¤ä¸ªbyteä¸º16ä½å€¼ï¼Œå­˜å‚¨ä¸Šé™
-        limit[1] = BYTE_TO_HW(self->rx_frame.elements.args[3], self->rx_frame.elements.args[2]);
-        return 0;                                                              // è¿”å›æˆåŠŸ
-    }
-    return -1;                                                                 // è¿”å›å¤±è´¥
-}
-
-/**
- * ============================================================================
- * @brief   è®¾ç½®èˆµæœºæ¸©åº¦ä¸Šé™
- * @details è®¾ç½®èˆµæœºçš„æœ€é«˜å…è®¸å·¥ä½œæ¸©åº¦ï¼Œè¶…è¿‡æ­¤æ¸©åº¦èˆµæœºä¼šè‡ªåŠ¨é™é€Ÿæˆ–åœæ­¢å·¥ä½œ
- * @param   self     - æŒ‡å‘èˆµæœºæ§åˆ¶å™¨çš„æŒ‡é’ˆ
- * @param   servo_id - ç›®æ ‡èˆµæœºçš„ID
- * @param   limit    - æ¸©åº¦ä¸Šé™å€¼ï¼Œå•ä½åº¦Cï¼ŒèŒƒå›´50-100
- * @return  æ— 
- * @note    è¶…è¿‡ä¸Šé™æ¸©åº¦èˆµæœºä¼šé™é€Ÿè¿è¡Œä»¥é™æ¸©ï¼›å€¼ä¼šè‡ªåŠ¨é™åˆ¶åœ¨50-100èŒƒå›´
- * ============================================================================
- */
-void serial_servo_set_temp_limit(SerialServoControllerTypeDef *self, uint32_t servo_id, uint32_t limit)
-{
-    SerialServoCmdTypeDef frame;
-    // é™åˆ¶æ¸©åº¦åœ¨50-100Â°CèŒƒå›´å†…
-    if (limit > 100) limit = 100;  // ä¸Šé™é™åˆ¶
-    if (limit < 50)  limit = 50;   // ä¸‹é™é™åˆ¶
-    
-    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_TEMP_MAX_LIMIT_WRITE);  // åˆå§‹åŒ–æ¸©åº¦é™åˆ¶å‘½ä»¤
-    frame.elements.args[0] = (uint8_t)limit;  // æ¸©åº¦å€¼
-    cmd_frame_complete(&frame, 1);            // å®Œæˆå¸§ï¼Œ1ä¸ªå‚æ•°
-    self->serial_write_and_read(self, &frame, true);  // å‘é€å‘½ä»¤ï¼ˆåªå†™ï¼‰
-}
-
-/**
- * ============================================================================
- * @brief   è¯»å–èˆµæœºæ¸©åº¦ä¸Šé™
- * @details æŸ¥è¯¢èˆµæœºå½“å‰è®¾å®šçš„æœ€é«˜å·¥ä½œæ¸©åº¦
- * @param   self     - æŒ‡å‘èˆµæœºæ§åˆ¶å™¨çš„æŒ‡é’ˆ
- * @param   servo_id - ç›®æ ‡èˆµæœºçš„ID
- * @param   limit    - æŒ‡å‘å­˜å‚¨é™åˆ¶å€¼çš„æŒ‡é’ˆï¼Œå•ä½åº¦C
- * @return  0è¡¨ç¤ºæˆåŠŸè¯»å–ï¼Œ-1è¡¨ç¤ºé€šä¿¡å¤±è´¥
- * ============================================================================
- */
-int serial_servo_read_temp_limit(SerialServoControllerTypeDef *self, uint32_t servo_id, uint8_t *limit)
-{
-    SerialServoCmdTypeDef frame;
-    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_TEMP_MAX_LIMIT_READ);  // åˆå§‹åŒ–è¯»æ¸©åº¦é™åˆ¶å‘½ä»¤
-    cmd_frame_complete(&frame, 0);                                             // å®Œæˆå¸§ï¼Œæ— å‚æ•°
-    if (0 == self->serial_write_and_read(self, &frame, false)) {               // å‘é€å¹¶ç­‰å¾…å“åº”
-        *limit = self->rx_frame.elements.args[0];                             // æå–æ¸©åº¦é™åˆ¶å€¼
-        return 0;                                                              // è¿”å›æˆåŠŸ
-    }
-    return -1;                                                                 // è¿”å›å¤±è´¥
-}
-
-/**
- * ============================================================================
- * @brief   è¯»å–èˆµæœºå½“å‰æ¸©åº¦
- * @details æŸ¥è¯¢èˆµæœºå†…éƒ¨çš„å®æ—¶æ¸©åº¦å€¼ï¼Œç”¨äºæ¸©åº¦ç›‘æµ‹å’Œè¿‡æ¸©ä¿æŠ¤
- * @param   self     - æŒ‡å‘èˆµæœºæ§åˆ¶å™¨çš„æŒ‡é’ˆ
- * @param   servo_id - ç›®æ ‡èˆµæœºçš„ID
- * @param   temp     - æŒ‡å‘å­˜å‚¨æ¸©åº¦å€¼çš„æŒ‡é’ˆï¼Œå•ä½åº¦C
- * @return  0è¡¨ç¤ºæˆåŠŸè¯»å–ï¼Œ-1è¡¨ç¤ºé€šä¿¡å¤±è´¥
- * @note    è¿”å›å€¼ä¸ºuint8_tï¼ŒèŒƒå›´0-255Â°Cï¼Œå…¸å‹å·¥ä½œæ¸©åº¦5-60Â°C
- * ============================================================================
- */
-int serial_servo_read_temp(SerialServoControllerTypeDef *self, uint32_t servo_id, uint8_t *temp)
-{
-    SerialServoCmdTypeDef frame;
-    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_TEMP_READ);  // åˆå§‹åŒ–è¯»æ¸©åº¦å‘½ä»¤
-    cmd_frame_complete(&frame, 0);                                     // å®Œæˆå¸§ï¼Œæ— å‚æ•°
-    if (0 == self->serial_write_and_read(self, &frame, false)) {       // å‘é€å¹¶ç­‰å¾…å“åº”
-        *temp = self->rx_frame.elements.args[0];                       // æå–æ¸©åº¦å€¼
-        return 0;                                                       // è¿”å›æˆåŠŸ
-    }
-    return -1;                                                          // è¿”å›å¤±è´¥
-}
-
-/**
- * ============================================================================
- * @brief   è®¾ç½®èˆµæœºè¾“å…¥ç”µå‹é™åˆ¶èŒƒå›´
- * @details é™åˆ¶èˆµæœºå…è®¸çš„å·¥ä½œç”µå‹èŒƒå›´ï¼Œè¶…å‡ºèŒƒå›´èˆµæœºä¼šè‡ªåŠ¨é™é€Ÿæˆ–åœæ­¢ï¼Œä¿æŠ¤ç¡¬ä»¶
- * @param   self     - æŒ‡å‘èˆµæœºæ§åˆ¶å™¨çš„æŒ‡é’ˆ
- * @param   servo_id - ç›®æ ‡èˆµæœºçš„ID
- * @param   limit_l  - ä¸‹é™ç”µå‹ï¼Œå•ä½:0.1Vï¼ŒèŒƒå›´4500-14000(å³4.5V-14V)
- * @param   limit_h  - ä¸Šé™ç”µå‹ï¼Œå•ä½:0.1Vï¼ŒèŒƒå›´4500-14000(å³4.5V-14V)
- * @return  æ— 
- * @note    è‡ªåŠ¨çº æ­£å‚æ•°å¤§å°å…³ç³»ï¼›å€¼ä¼šè‡ªåŠ¨é™åˆ¶åœ¨4500-14000èŒƒå›´ï¼›
- *          ç”µå‹å€¼å•ä½ä¸º0.1Vï¼Œå¦‚limit_l=5000ä»£è¡¨5V
- * ============================================================================
- */
-void serial_servo_set_vin_limit(SerialServoControllerTypeDef *self, uint32_t servo_id, uint32_t limit_l, uint32_t limit_h)
-{
-    SerialServoCmdTypeDef frame;
-    // é™åˆ¶æ‰€æœ‰å€¼åœ¨4500-14000èŒƒå›´å†…(4.5V-14V)
-    if (limit_l < 4500)  limit_l = 4500;    // ä¸‹é™ä¿æŠ¤
-    if (limit_l > 14000) limit_l = 14000;   // ä¸Šé™ä¿æŠ¤
-    if (limit_h < 4500)  limit_h = 4500;    // ä¸‹é™ä¿æŠ¤
-    if (limit_h > 14000) limit_h = 14000;   // ä¸Šé™ä¿æŠ¤
-    
-    // è‡ªåŠ¨çº æ­£ä¸Šä¸‹é™å…³ç³»ï¼Œç¡®ä¿real_limit_l < real_limit_h
-    uint32_t real_limit_l = (limit_l > limit_h) ? limit_h : limit_l;  // ç¡®ä¿ä¸ºè¾ƒå°å€¼
-    uint32_t real_limit_h = (limit_l > limit_h) ? limit_l : limit_h;  // ç¡®ä¿ä¸ºè¾ƒå¤§å€¼
-    
-    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_VIN_LIMIT_WRITE);  // åˆå§‹åŒ–ç”µå‹é™åˆ¶å‘½ä»¤
-    frame.elements.args[0] = GET_LOW_BYTE(real_limit_l);    // ä¸‹é™ä½byte
-    frame.elements.args[1] = GET_HIGH_BYTE(real_limit_l);   // ä¸‹é™é«˜byte
-    frame.elements.args[2] = GET_LOW_BYTE(real_limit_h);    // ä¸Šé™ä½byte
-    frame.elements.args[3] = GET_HIGH_BYTE(real_limit_h);   // ä¸Šé™é«˜byte
-    cmd_frame_complete(&frame, 4);                          // å®Œæˆå¸§ï¼Œ4ä¸ªå‚æ•°
-    self->serial_write_and_read(self, &frame, true);        // å‘é€å‘½ä»¤ï¼ˆåªå†™ï¼‰
-}
-
-/**
- * ============================================================================
- * @brief   è¯»å–èˆµæœºç”µå‹é™åˆ¶èŒƒå›´
- * @details æŸ¥è¯¢èˆµæœºå½“å‰è®¾å®šçš„è¾“å…¥ç”µå‹é™åˆ¶å€¼
- * @param   self     - æŒ‡å‘èˆµæœºæ§åˆ¶å™¨çš„æŒ‡é’ˆ
- * @param   servo_id - ç›®æ ‡èˆµæœºçš„ID
- * @param   limit    - æŒ‡å‘æ•°ç»„çš„æŒ‡é’ˆï¼Œ[0]å­˜å‚¨ä¸‹é™ï¼Œ[1]å­˜å‚¨ä¸Šé™ï¼Œå•ä½:0.1V
- * @return  0è¡¨ç¤ºæˆåŠŸè¯»å–ï¼Œ-1è¡¨ç¤ºé€šä¿¡å¤±è´¥
- * @note    è¿”å›å€¼å•ä½ä¸º0.1Vï¼Œå¦‚å€¼5000è¡¨ç¤º5Vï¼›limit[0]=ä¸‹é™ï¼Œlimit[1]=ä¸Šé™
- * ============================================================================
- */
-int serial_servo_read_vin_limit(SerialServoControllerTypeDef *self, uint32_t servo_id, uint16_t limit[2])
-{
-    SerialServoCmdTypeDef frame;
-    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_VIN_LIMIT_READ);  // åˆå§‹åŒ–è¯»ç”µå‹é™åˆ¶å‘½ä»¤
-    cmd_frame_complete(&frame, 0);                                         // å®Œæˆå¸§ï¼Œæ— å‚æ•°
-    if (0 == self->serial_write_and_read(self, &frame, false)) {           // å‘é€å¹¶ç­‰å¾…å“åº”
-        // ç»„åˆä¸¤ä¸ªbyteä¸º16ä½å€¼ï¼Œå­˜å‚¨ä¸‹é™
-        limit[0] = BYTE_TO_HW(self->rx_frame.elements.args[1], self->rx_frame.elements.args[0]);
-        // ç»„åˆä¸¤ä¸ªbyteä¸º16ä½å€¼ï¼Œå­˜å‚¨ä¸Šé™
-        limit[1] = BYTE_TO_HW(self->rx_frame.elements.args[3], self->rx_frame.elements.args[2]);
-        return 0;                                                           // è¿”å›æˆåŠŸ
-    }
-    return -1;                                                              // è¿”å›å¤±è´¥
-}
-
-/**
- * ============================================================================
- * @brief   è¯»å–èˆµæœºå½“å‰è¾“å…¥ç”µå‹
- * @details æŸ¥è¯¢èˆµæœºçš„å®æ—¶è¾“å…¥ç”µå‹å€¼ï¼Œç”¨äºç”µæºç›‘æµ‹å’Œæ•…éšœè¯Šæ–­
- * @param   self     - æŒ‡å‘èˆµæœºæ§åˆ¶å™¨çš„æŒ‡é’ˆ
- * @param   servo_id - ç›®æ ‡èˆµæœºçš„ID
- * @param   vin      - æŒ‡å‘å­˜å‚¨ç”µå‹å€¼çš„æŒ‡é’ˆï¼Œå•ä½:0.1V
- * @return  0è¡¨ç¤ºæˆåŠŸè¯»å–ï¼Œ-1è¡¨ç¤ºé€šä¿¡å¤±è´¥
- * @note    è¿”å›å€¼å•ä½ä¸º0.1Vï¼Œå¦‚vin=5000è¡¨ç¤º5.0Vï¼›å…¸å‹èŒƒå›´5000-12000(5V-12V)
- * ============================================================================
- */
-int serial_servo_read_vin(SerialServoControllerTypeDef *self, uint32_t servo_id, uint16_t *vin)
-{
-    SerialServoCmdTypeDef frame;
-    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_VIN_READ);  // åˆå§‹åŒ–è¯»ç”µå‹å‘½ä»¤
-    cmd_frame_complete(&frame, 0);                                    // å®Œæˆå¸§ï¼Œæ— å‚æ•°
-    if (0 == self->serial_write_and_read(self, &frame, false)) {      // å‘é€å¹¶ç­‰å¾…å“åº”
-        // ç»„åˆä¸¤ä¸ªbyteä¸º16ä½ç”µå‹å€¼
-        *vin = BYTE_TO_HW(self->rx_frame.elements.args[1], self->rx_frame.elements.args[0]);
-        return 0;                                                      // è¿”å›æˆåŠŸ
-    }
-    return -1;                                                         // è¿”å›å¤±è´¥
-}
-
-/**
- * ============================================================================
- * @brief   èˆµæœºæ§åˆ¶å™¨å¯¹è±¡åˆå§‹åŒ–
- * @details åˆå§‹åŒ–èˆµæœºæ§åˆ¶å™¨çš„æ‰€æœ‰æˆå‘˜å˜é‡ï¼ŒåŒ…æ‹¬çŠ¶æ€æœºã€ç¼“å†²åŒºå’Œå›è°ƒå‡½æ•°
- * @param   self - æŒ‡å‘èˆµæœºæ§åˆ¶å™¨ç»“æ„ä½“çš„æŒ‡é’ˆ
- * @return  æ— 
- * @note    éœ€è¦åœ¨ä½¿ç”¨å‰è°ƒç”¨æ­¤å‡½æ•°ï¼›åˆå§‹åŒ–åéœ€è¦è®¾ç½®serial_write_and_readå›è°ƒå‡½æ•°
- * ============================================================================
- */
-void serial_servo_controller_object_init(SerialServoControllerTypeDef *self)
-{
-    self->proc_timeout = 8;                                    // è®¾ç½®å¤„ç†è¶…æ—¶æ—¶é—´(å•ä½å¾…å®š)
-    self->rx_args_index = 0;                                   // æ¸…é›¶æ¥æ”¶å‚æ•°ç´¢å¼•
-    self->rx_state = SERIAL_SERVO_RECV_STARTBYTE_1;           // åˆå§‹åŒ–æ¥æ”¶çŠ¶æ€ä¸ºç­‰å¾…ç¬¬ä¸€ä¸ªå¸§å¤´
-    self->rx_completed = false;                                // æ¥æ”¶å®Œæˆæ ‡å¿—ç½®ä¸ºfalse
-    memset(&self->rx_frame, 0, sizeof(SerialServoCmdTypeDef)); // æ¸…ç©ºæ¥æ”¶å¸§ç¼“å†²åŒº
-    self->tx_only = true;                                      // è®¾ç½®ä¸ºåªå‘é€æ¨¡å¼
-    self->tx_byte_index = 0;                                   // æ¸…é›¶å‘é€byteç´¢å¼•
-    memset(&self->tx_frame, 0, sizeof(SerialServoCmdTypeDef)); // æ¸…ç©ºå‘é€å¸§ç¼“å†²åŒº
-    self->serial_write_and_read = NULL;                        // æ¸…ç©ºå›è°ƒå‡½æ•°æŒ‡é’ˆ(éœ€è¦åç»­èµ‹å€¼)
-}
+/**
+ * *****************************************************************************
+ * @file    serial_servo.c
+ * @author  Antigravity
+ * @brief   ´®¿Ú×ÜÏß¶æ»úºËĞÄĞ­Òé½Ó¿ÚÊµÏÖÎÄ¼ş (´¿Ğ­Òé²ã£¬Óëµ×²ãÓ²¼şÍêÈ«½âñî)
+ * *****************************************************************************
+ */
+
+#include "serial_servo.h"
+#include <string.h>
+
+#define GET_LOW_BYTE(A)  ((uint8_t)(A))           
+#define GET_HIGH_BYTE(A) ((uint8_t)((A) >> 8))     
+#define BYTE_TO_HW(A, B) ((((uint16_t)(A)) << 8) | (uint8_t)(B)) 
+
+/**
+ * ============================================================================
+ * @brief   ÃüÁîÖ¡³õÊ¼»¯º¯Êı(¾²Ì¬)
+ * @details ³õÊ¼»¯Ò»¸ö´®¿Ú¶æ»úÍ¨ĞÅĞ­ÒéµÄÃüÁîÖ¡½á¹¹Ìå£¬ÉèÖÃÖ¡Í·ºÍ»ù±¾ĞÅÏ¢
+ * @param   frame    - Ö¸ÏòÃüÁîÖ¡½á¹¹ÌåµÄÖ¸Õë
+ * @param   servo_id - Ä¿±ê¶æ»úµÄID
+ * @param   cmd      - Òª·¢ËÍµÄÃüÁî×Ö½Ú
+ * @return  ÎŞ
+ * @note    ÕâÊÇÒ»¸öÄÚ²¿¸¨Öúº¯Êı£¬ÓÃÓÚËùÓĞÃüÁî·¢ËÍÇ°µÄÖ¡¸ñÊ½³õÊ¼»¯
+ * ============================================================================
+ */
+static void cmd_frame_init(SerialServoCmdTypeDef *frame, uint8_t servo_id, uint8_t cmd)
+{
+    frame->header_1 = SERIAL_SERVO_FRAME_HEADER;  // ÉèÖÃµÚÒ»¸öÖ¡Í·
+    frame->header_2 = SERIAL_SERVO_FRAME_HEADER;  // ÉèÖÃµÚ¶ş¸öÖ¡Í·
+    frame->elements.servo_id = servo_id;          // ÉèÖÃÄ¿±ê¶æ»úID
+    frame->elements.command = cmd;                // ÉèÖÃÃüÁî×Ö½Ú
+}
+
+/**
+ * ============================================================================
+ * @brief   ÃüÁîÖ¡Íê³Éº¯Êı(¾²Ì¬)
+ * @details ¼ÆËã²¢ÉèÖÃÃüÁîÖ¡µÄÊı¾İ³¤¶ÈºÍĞ£ÑéºÍ£¬Ê¹Ö¡³ÉÎª¿É·¢ËÍ×´Ì¬
+ * @param   frame    - Ö¸ÏòÃüÁîÖ¡½á¹¹ÌåµÄÖ¸Õë
+ * @param   args_num - ±¾ÌõÃüÁî°üº¬µÄ²ÎÊı¸öÊı
+ * @return  ÎŞ
+ * @note    ±ØĞëÔÚËùÓĞ²ÎÊıÌî³äÍê±Ïºóµ÷ÓÃ´Ëº¯Êı£¬ÒÔÍêÉÆÖ¡µÄ³¤¶ÈºÍĞ£Ñé×Ö¶Î
+ * ============================================================================
+ */
+static void cmd_frame_complete(SerialServoCmdTypeDef *frame, uint8_t args_num)
+{
+    frame->elements.length = args_num + 3;  // ³¤¶È = ²ÎÊıÊı + ¶æ»úID + ÃüÁî + ³¤¶È×Ö¶Î
+    frame->elements.args[args_num] = serial_servo_checksum((uint8_t*)frame);  // ¼ÆËã²¢ÌîÈëĞ£ÑéºÍ
+}
+
+/**
+ * ============================================================================
+ * @brief   ÉèÖÃ¶æ»úID
+ * @details ¸Ä±äÖ¸¶¨¶æ»úµÄIDºÅ£¬ĞèÒªÌá¹©¾ÉIDÒÔ¶¨Î»¸Ã¶æ»ú
+ * @param   self   - Ö¸Ïò¶æ»ú¿ØÖÆÆ÷µÄÖ¸Õë
+ * @param   old_id - ¶æ»úµÄµ±Ç°ID
+ * @param   new_id - ÒªÉèÖÃµÄĞÂID
+ * @return  ÎŞ
+ * @note    ÉèÖÃºóĞèÒªÖØÆô¶æ»ú²ÅÄÜÉúĞ§£»ĞÂID·¶Î§Ó¦Îª0-253
+ * ============================================================================
+ */
+void serial_servo_set_id(SerialServoControllerTypeDef *self, uint32_t old_id, uint32_t new_id)
+{
+    SerialServoCmdTypeDef frame;
+    cmd_frame_init(&frame, (uint8_t)old_id, SERIAL_SERVO_ID_WRITE);  // Ê¹ÓÃ¾ÉIDÀ´Ñ°Ö·
+    frame.elements.args[0] = (uint8_t)new_id;                         // ÉèÖÃĞÂID
+    cmd_frame_complete(&frame, 1);                                   // Íê³ÉÖ¡£¬1¸ö²ÎÊı
+    self->serial_write_and_read(self, &frame, true);                 // ·¢ËÍÃüÁî£¨Ö»Ğ´£¬²»ĞèÒª¶ÁÏìÓ¦£©
+}
+
+/**
+ * ============================================================================
+ * @brief   ¶ÁÈ¡¶æ»úID
+ * @details ²éÑ¯Ö¸¶¨¶æ»úµ±Ç°µÄIDºÅ£¬ÓÃÓÚÑéÖ¤»òÈ·ÈÏ¶æ»ú±êÊ¶
+ * @param   self        - Ö¸Ïò¶æ»ú¿ØÖÆÆ÷µÄÖ¸Õë
+ * @param   servo_id    - Ä¿±ê¶æ»úµÄID
+ * @param   ret_servo_id - Ö¸Ïò·µ»Ø½á¹ûµÄÖ¸Õë£¬´æ´¢¶Á»ØµÄID
+ * @return  0±íÊ¾³É¹¦¶ÁÈ¡£¬-1±íÊ¾Í¨ĞÅÊ§°Ü
+ * @note    ¶ÁÈ¡Ê§°Ü¿ÉÄÜÔ­Òò£ºÍ¨ĞÅ³¬Ê±¡¢¶æ»ú²»´æÔÚ»òÎŞÏìÓ¦
+ * ============================================================================
+ */
+int serial_servo_read_id(SerialServoControllerTypeDef *self, uint32_t servo_id, uint8_t *ret_servo_id)
+{
+    SerialServoCmdTypeDef frame;
+    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_ID_READ);  // ³õÊ¼»¯¶ÁIDÃüÁî
+    cmd_frame_complete(&frame, 0);                                   // Íê³ÉÖ¡£¬ÎŞ²ÎÊı
+    if (0 == self->serial_write_and_read(self, &frame, false)) {     // ·¢ËÍ²¢µÈ´ıÏìÓ¦
+        *ret_servo_id = self->rx_frame.elements.args[0];             // ÌáÈ¡ÏìÓ¦ÖĞµÄID
+        return 0;                                                     // ·µ»Ø³É¹¦
+    }
+    return -1;                                                        // ·µ»ØÊ§°Ü
+}
+
+/**
+ * ============================================================================
+ * @brief   ÉèÖÃ¶æ»úÎ»ÖÃºÍÔË¶¯Ê±¼ä
+ * @details ÃüÁî¶æ»úÔÚÖ¸¶¨Ê±¼äÄÚÒÆ¶¯µ½Ä¿±êÎ»ÖÃ£¬ÊµÏÖÆ½»¬µÄ¶æ»úÔË¶¯
+ * @param   self     - Ö¸Ïò¶æ»ú¿ØÖÆÆ÷µÄÖ¸Õë
+ * @param   servo_id - Ä¿±ê¶æ»úµÄID
+ * @param   position - Ä¿±êÎ»ÖÃ£¬·¶Î§0-1000£¬¶ÔÓ¦¶æ»úµÄÈ«ĞĞ³Ì
+ * @param   duration - ÔË¶¯Ê±¼ä(ºÁÃë)£¬¾ö¶¨¶æ»úÒÆ¶¯ËÙ¶È
+ * @return  ÎŞ
+ * @note    position»á×Ô¶¯ÏŞÖÆÔÚ0-1000·¶Î§ÄÚ£»durationµÄÓĞĞ§·¶Î§Í¨³£Îª0-5000ms
+ * ============================================================================
+ */
+void serial_servo_set_position(SerialServoControllerTypeDef *self, uint32_t servo_id, int position, uint32_t duration)
+{
+    SerialServoCmdTypeDef frame;
+    // ÏŞÖÆpositionÔÚÓĞĞ§·¶Î§[0, 1000]
+    if (position > 1000) position = 1000;  // ÉÏÏŞÏŞÖÆ
+    if (position < 0)    position = 0;     // ÏÂÏŞÏŞÖÆ
+    
+    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_MOVE_TIME_WRITE);  // ³õÊ¼»¯ÉèÖÃÎ»ÖÃÃüÁî
+    frame.elements.args[0] = GET_LOW_BYTE(position);    // Î»ÖÃµÍbyte
+    frame.elements.args[1] = GET_HIGH_BYTE(position);   // Î»ÖÃ¸ßbyte
+    frame.elements.args[2] = GET_LOW_BYTE(duration);    // Ê±¼äµÍbyte
+    frame.elements.args[3] = GET_HIGH_BYTE(duration);   // Ê±¼ä¸ßbyte
+    cmd_frame_complete(&frame, 4);                      // Íê³ÉÖ¡£¬4¸ö²ÎÊı
+    self->serial_write_and_read(self, &frame, true);    // ·¢ËÍÃüÁî£¨Ö»Ğ´£©
+}
+
+/**
+ * ============================================================================
+ * @brief   ¶ÁÈ¡¶æ»úµ±Ç°Î»ÖÃ
+ * @details ²éÑ¯¶æ»úµÄÊµÊ±Î»ÖÃĞÅÏ¢£¬ÓÃÓÚ×´Ì¬·´À¡ºÍÎ»ÖÃÑéÖ¤
+ * @param   self     - Ö¸Ïò¶æ»ú¿ØÖÆÆ÷µÄÖ¸Õë
+ * @param   servo_id - Ä¿±ê¶æ»úµÄID
+ * @param   position - Ö¸Ïò´æ´¢Î»ÖÃµÄÖ¸Õë£¬·¶Î§0-1000
+ * @return  0±íÊ¾³É¹¦¶ÁÈ¡£¬-1±íÊ¾Í¨ĞÅÊ§°Ü
+ * @note    ·µ»ØµÄpositionÖµ·¶Î§Îª0-1000£¬¶ÔÓ¦¶æ»úµÄÈ«ĞĞ³Ì
+ * ============================================================================
+ */
+int serial_servo_read_position(SerialServoControllerTypeDef *self, uint32_t servo_id, int16_t *position)
+{
+    SerialServoCmdTypeDef frame;
+    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_POS_READ);  // ³õÊ¼»¯¶ÁÎ»ÖÃÃüÁî
+    cmd_frame_complete(&frame, 0);                                    // Íê³ÉÖ¡£¬ÎŞ²ÎÊı
+    if (0 == self->serial_write_and_read(self, &frame, false)) {      // ·¢ËÍ²¢µÈ´ıÏìÓ¦
+        // ½«Á½¸öbyteºÏ³É16Î»position
+        *position = (int16_t)BYTE_TO_HW(self->rx_frame.elements.args[1], self->rx_frame.elements.args[0]);
+        return 0;                                                      // ·µ»Ø³É¹¦
+    }
+    return -1;                                                         // ·µ»ØÊ§°Ü
+}
+
+/**
+ * ============================================================================
+ * @brief   Í£Ö¹¶æ»úÔË¶¯
+ * @details Á¢¼´Í£Ö¹Ö¸¶¨¶æ»úµÄÔË¶¯£¬¶æ»ú±£³Öµ±Ç°Î»ÖÃ
+ * @param   self     - Ö¸Ïò¶æ»ú¿ØÖÆÆ÷µÄÖ¸Õë
+ * @param   servo_id - Ä¿±ê¶æ»úµÄID
+ * @return  ÎŞ
+ * @note    Í£Ö¹Á¢¼´ÉúĞ§£¬¶æ»ú½«Ëø¶¨ÔÚ½ÓÊÕµ½´ËÃüÁîÊ±µÄÎ»ÖÃ
+ * ============================================================================
+ */
+void serial_servo_stop(SerialServoControllerTypeDef *self, uint32_t servo_id)
+{
+    SerialServoCmdTypeDef frame;
+    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_MOVE_STOP);  // ³õÊ¼»¯Í£Ö¹ÃüÁî
+    cmd_frame_complete(&frame, 0);                                     // Íê³ÉÖ¡£¬ÎŞ²ÎÊı
+    self->serial_write_and_read(self, &frame, true);                   // ·¢ËÍÃüÁî£¨Ö»Ğ´£©
+}
+
+/**
+ * ============================================================================
+ * @brief   ÉèÖÃ¶æ»ú½Ç¶ÈÆ«²î
+ * @details Í¨¹ıÎ¢µ÷Æ«²îÖµÀ´¾ÀÕı¶æ»úµÄ»úĞµÁãµãÆ«²î£¬Ìá¸ß¿ØÖÆ¾«¶È
+ * @param   self          - Ö¸Ïò¶æ»ú¿ØÖÆÆ÷µÄÖ¸Õë
+ * @param   servo_id      - Ä¿±ê¶æ»úµÄID
+ * @param   new_deviation - ĞÂµÄÆ«²îÖµ£¬·¶Î§-125µ½+125
+ * @return  ÎŞ
+ * @note    Æ«²îÖµÎªÓĞ·ûºÅÕûÊı£¬ĞèÒªµ÷ÓÃserial_servo_save_deviation()²ÅÄÜÓÀ¾Ã±£´æ
+ * ============================================================================
+ */
+void serial_servo_set_deviation(SerialServoControllerTypeDef *self, uint32_t servo_id, int new_deviation)
+{
+    SerialServoCmdTypeDef frame;
+    // ÏŞÖÆdeviationÔÚÓĞĞ§·¶Î§[-125, +125]
+    if (new_deviation > 125)  new_deviation = 125;      // ÉÏÏŞÏŞÖÆ
+    if (new_deviation < -125) new_deviation = -125;     // ÏÂÏŞÏŞÖÆ
+    
+    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_ANGLE_OFFSET_ADJUST);  // ³õÊ¼»¯Æ«²îµ÷ÕûÃüÁî
+    frame.elements.args[0] = (uint8_t)((int8_t)new_deviation);  // ×ªÎª8Î»ÓĞ·ûºÅÕûÊı
+    cmd_frame_complete(&frame, 1);                              // Íê³ÉÖ¡£¬1¸ö²ÎÊı
+    self->serial_write_and_read(self, &frame, true);            // ·¢ËÍÃüÁî£¨Ö»Ğ´£©
+}
+
+/**
+ * ============================================================================
+ * @brief   ¶ÁÈ¡¶æ»ú½Ç¶ÈÆ«²î
+ * @details ¶ÁÈ¡¶æ»úµ±Ç°µÄ½Ç¶ÈÆ«²îÖµ£¬ÓÃÓÚÑéÖ¤ÁãµãĞ£×¼×´Ì¬
+ * @param   self      - Ö¸Ïò¶æ»ú¿ØÖÆÆ÷µÄÖ¸Õë
+ * @param   servo_id  - Ä¿±ê¶æ»úµÄID
+ * @param   deviation - Ö¸Ïò´æ´¢Æ«²îÖµµÄÖ¸Õë
+ * @return  0±íÊ¾³É¹¦¶ÁÈ¡£¬-1±íÊ¾Í¨ĞÅÊ§°Ü
+ * @note    ·µ»ØÖµ·¶Î§ÓëÉèÖÃ·¶Î§Ò»ÖÂ£º-125µ½+125
+ * ============================================================================
+ */
+int serial_servo_read_deviation(SerialServoControllerTypeDef *self, uint32_t servo_id, int8_t *deviation)
+{
+    SerialServoCmdTypeDef frame;
+    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_ANGLE_OFFSET_READ);  // ³õÊ¼»¯¶ÁÆ«²îÃüÁî
+    cmd_frame_complete(&frame, 0);                                            // Íê³ÉÖ¡£¬ÎŞ²ÎÊı
+    if (0 == self->serial_write_and_read(self, &frame, false)) {              // ·¢ËÍ²¢µÈ´ıÏìÓ¦
+        *deviation = (int8_t)self->rx_frame.elements.args[0];                 // ×ªÎª8Î»ÓĞ·ûºÅÕûÊı
+        return 0;                                                              // ·µ»Ø³É¹¦
+    }
+    return -1;                                                                 // ·µ»ØÊ§°Ü
+}
+
+/**
+ * ============================================================================
+ * @brief   ±£´æ¶æ»ú½Ç¶ÈÆ«²îµ½EEPROM
+ * @details ½«µ±Ç°µÄ½Ç¶ÈÆ«²îÖµÓÀ¾Ã±£´æµ½¶æ»úµÄ·ÇÒ×Ê§ĞÔ´æ´¢Æ÷ÖĞ
+ * @param   self     - Ö¸Ïò¶æ»ú¿ØÖÆÆ÷µÄÖ¸Õë
+ * @param   servo_id - Ä¿±ê¶æ»úµÄID
+ * @return  ÎŞ
+ * @note    ±ØĞëÏÈµ÷ÓÃserial_servo_set_deviation()ÉèÖÃÆ«²î£¬ÔÙµ÷ÓÃ±¾º¯Êı±£´æ
+ * ============================================================================
+ */
+void serial_servo_save_deviation(SerialServoControllerTypeDef *self, uint32_t servo_id)
+{
+    SerialServoCmdTypeDef frame;
+    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_ANGLE_OFFSET_WRITE);  // ³õÊ¼»¯±£´æÆ«²îÃüÁî
+    cmd_frame_complete(&frame, 0);                                             // Íê³ÉÖ¡£¬ÎŞ²ÎÊı
+    self->serial_write_and_read(self, &frame, true);                           // ·¢ËÍÃüÁî£¨Ö»Ğ´£©
+}
+
+/**
+ * ============================================================================
+ * @brief   ÉèÖÃ¶æ»ú¸ºÔØ×´Ì¬£¨Ëø¶¨/½âËø£©
+ * @details ¿ØÖÆ¶æ»úµç»úµÄ¹©µç×´Ì¬£¬Ëø¶¨Ê±¶æ»ú±£³Öµ±Ç°Î»ÖÃ£¬½âËøÊ±¶æ»ú¿É±»ÍâÁ¦×ª¶¯
+ * @param   self     - Ö¸Ïò¶æ»ú¿ØÖÆÆ÷µÄÖ¸Õë
+ * @param   servo_id - Ä¿±ê¶æ»úµÄID
+ * @param   load     - ¸ºÔØ×´Ì¬£º0±íÊ¾½âËø(ÎŞÅ¤¾Ø)£¬1±íÊ¾Ëø¶¨(ÓĞÅ¤¾Ø)
+ * @return  ÎŞ
+ * @note    ½âËøÊ±¶æ»ú²»»á±£³ÖÎ»ÖÃ£¬µ«»á½µµÍ¹¦ºÄºÍ·¢ÈÈ
+ * ============================================================================
+ */
+void serial_servo_load_unload(SerialServoControllerTypeDef *self, uint32_t servo_id, uint32_t load)
+{
+    SerialServoCmdTypeDef frame;
+    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_LOAD_OR_UNLOAD_WRITE);  // ³õÊ¼»¯¸ºÔØÉèÖÃÃüÁî
+    frame.elements.args[0] = (uint8_t)load;  // 0=½âËø, 1=Ëø¶¨
+    cmd_frame_complete(&frame, 1);           // Íê³ÉÖ¡£¬1¸ö²ÎÊı
+    self->serial_write_and_read(self, &frame, true);  // ·¢ËÍÃüÁî£¨Ö»Ğ´£©
+}
+
+/**
+ * ============================================================================
+ * @brief   ¶ÁÈ¡¶æ»ú¸ºÔØ×´Ì¬
+ * @details ²éÑ¯¶æ»úµ±Ç°µÄËø¶¨/½âËø×´Ì¬
+ * @param   self       - Ö¸Ïò¶æ»ú¿ØÖÆÆ÷µÄÖ¸Õë
+ * @param   servo_id   - Ä¿±ê¶æ»úµÄID
+ * @param   load_unload - Ö¸Ïò´æ´¢×´Ì¬µÄÖ¸Õë£º0±íÊ¾½âËø£¬1±íÊ¾Ëø¶¨
+ * @return  0±íÊ¾³É¹¦¶ÁÈ¡£¬-1±íÊ¾Í¨ĞÅÊ§°Ü
+ * ============================================================================
+ */
+int serial_servo_read_load_unload(SerialServoControllerTypeDef *self, uint32_t servo_id, uint8_t* load_unload)
+{
+    SerialServoCmdTypeDef frame;
+    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_LOAD_OR_UNLOAD_READ);  // ³õÊ¼»¯¶Á¸ºÔØÃüÁî
+    cmd_frame_complete(&frame, 0);                                              // Íê³ÉÖ¡£¬ÎŞ²ÎÊı
+    if (0 == self->serial_write_and_read(self, &frame, false)) {                // ·¢ËÍ²¢µÈ´ıÏìÓ¦
+        *load_unload = self->rx_frame.elements.args[0];                         // ÌáÈ¡¸ºÔØ×´Ì¬
+        return 0;                                                                // ·µ»Ø³É¹¦
+    }
+    return -1;                                                                   // ·µ»ØÊ§°Ü
+}
+
+/**
+ * ============================================================================
+ * @brief   ÉèÖÃ¶æ»ú½Ç¶ÈÏŞÖÆ·¶Î§
+ * @details ÏŞÖÆ¶æ»úµÄ»î¶¯·¶Î§£¬¶æ»úÎŞ·¨³¬³öÉè¶¨µÄ½Ç¶È½çÏŞ£¬Ìá¹©»úĞµ±£»¤
+ * @param   self     - Ö¸Ïò¶æ»ú¿ØÖÆÆ÷µÄÖ¸Õë
+ * @param   servo_id - Ä¿±ê¶æ»úµÄID
+ * @param   limit_l  - ÏÂÏŞÎ»ÖÃ£¬·¶Î§0-1000
+ * @param   limit_h  - ÉÏÏŞÎ»ÖÃ£¬·¶Î§0-1000
+ * @return  ÎŞ
+ * @note    ×Ô¶¯¾ÀÕı²ÎÊı´óĞ¡¹ØÏµ£¨Èôlimit_l > limit_hÔò×Ô¶¯½»»»£©£»
+ *          ÖµÏŞÖÆÔÚ0-1000·¶Î§ÄÚ£»Ğè±£´æ²ÅÄÜÓÀ¾ÃÓĞĞ§
+ * ============================================================================
+ */
+void serial_servo_set_angle_limit(SerialServoControllerTypeDef *self, uint32_t servo_id, uint32_t limit_l, uint32_t limit_h)
+{
+    SerialServoCmdTypeDef frame;
+    // ÏŞÖÆËùÓĞÖµÔÚ0-1000·¶Î§ÄÚ
+    if (limit_l > 1000) limit_l = 1000;
+    if (limit_h > 1000) limit_h = 1000;
+    
+    // ×Ô¶¯¾ÀÕıÉÏÏÂÏŞ¹ØÏµ£¬È·±£limit_l < limit_h
+    uint32_t real_limit_l = (limit_l > limit_h) ? limit_h : limit_l;  // È·±£Îª½ÏĞ¡Öµ
+    uint32_t real_limit_h = (limit_l > limit_h) ? limit_l : limit_h;  // È·±£Îª½Ï´óÖµ
+    
+    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_ANGLE_LIMIT_WRITE);  // ³õÊ¼»¯½Ç¶ÈÏŞÖÆÃüÁî
+    frame.elements.args[0] = GET_LOW_BYTE(real_limit_l);    // ÏÂÏŞµÍbyte
+    frame.elements.args[1] = GET_HIGH_BYTE(real_limit_l);   // ÏÂÏŞ¸ßbyte
+    frame.elements.args[2] = GET_LOW_BYTE(real_limit_h);    // ÉÏÏŞµÍbyte
+    frame.elements.args[3] = GET_HIGH_BYTE(real_limit_h);   // ÉÏÏŞ¸ßbyte
+    cmd_frame_complete(&frame, 4);                          // Íê³ÉÖ¡£¬4¸ö²ÎÊı
+    self->serial_write_and_read(self, &frame, true);        // ·¢ËÍÃüÁî£¨Ö»Ğ´£©
+}
+
+/**
+ * ============================================================================
+ * @brief   ¶ÁÈ¡¶æ»ú½Ç¶ÈÏŞÖÆ·¶Î§
+ * @details ²éÑ¯¶æ»úµ±Ç°Éè¶¨µÄ½Ç¶ÈÏŞÖÆÖµ
+ * @param   self     - Ö¸Ïò¶æ»ú¿ØÖÆÆ÷µÄÖ¸Õë
+ * @param   servo_id - Ä¿±ê¶æ»úµÄID
+ * @param   limit    - Ö¸ÏòÊı×éµÄÖ¸Õë£¬[0]´æ´¢ÏÂÏŞ£¬[1]´æ´¢ÉÏÏŞ
+ * @return  0±íÊ¾³É¹¦¶ÁÈ¡£¬-1±íÊ¾Í¨ĞÅÊ§°Ü
+ * @note    ·µ»ØÊı×éÖĞ limit[0]=ÏÂÏŞ, limit[1]=ÉÏÏŞ
+ * ============================================================================
+ */
+int serial_servo_read_angle_limit(SerialServoControllerTypeDef *self, uint32_t servo_id, uint16_t limit[2])
+{
+    SerialServoCmdTypeDef frame;
+    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_ANGLE_LIMIT_READ);  // ³õÊ¼»¯¶Á½Ç¶ÈÏŞÖÆÃüÁî
+    cmd_frame_complete(&frame, 0);                                            // Íê³ÉÖ¡£¬ÎŞ²ÎÊı
+    if (0 == self->serial_write_and_read(self, &frame, false)) {              // ·¢ËÍ²¢µÈ´ıÏìÓ¦
+        // ×éºÏÁ½¸öbyteÎª16Î»Öµ£¬´æ´¢ÏÂÏŞ
+        limit[0] = BYTE_TO_HW(self->rx_frame.elements.args[1], self->rx_frame.elements.args[0]);
+        // ×éºÏÁ½¸öbyteÎª16Î»Öµ£¬´æ´¢ÉÏÏŞ
+        limit[1] = BYTE_TO_HW(self->rx_frame.elements.args[3], self->rx_frame.elements.args[2]);
+        return 0;                                                              // ·µ»Ø³É¹¦
+    }
+    return -1;                                                                 // ·µ»ØÊ§°Ü
+}
+
+/**
+ * ============================================================================
+ * @brief   ÉèÖÃ¶æ»úÎÂ¶ÈÉÏÏŞ
+ * @details ÉèÖÃ¶æ»úµÄ×î¸ßÔÊĞí¹¤×÷ÎÂ¶È£¬³¬¹ı´ËÎÂ¶È¶æ»ú»á×Ô¶¯½µËÙ»òÍ£Ö¹¹¤×÷
+ * @param   self     - Ö¸Ïò¶æ»ú¿ØÖÆÆ÷µÄÖ¸Õë
+ * @param   servo_id - Ä¿±ê¶æ»úµÄID
+ * @param   limit    - ÎÂ¶ÈÉÏÏŞÖµ£¬µ¥Î»¶ÈC£¬·¶Î§50-100
+ * @return  ÎŞ
+ * @note    ³¬¹ıÉÏÏŞÎÂ¶È¶æ»ú»á½µËÙÔËĞĞÒÔ½µÎÂ£»Öµ»á×Ô¶¯ÏŞÖÆÔÚ50-100·¶Î§
+ * ============================================================================
+ */
+void serial_servo_set_temp_limit(SerialServoControllerTypeDef *self, uint32_t servo_id, uint32_t limit)
+{
+    SerialServoCmdTypeDef frame;
+    // ÏŞÖÆÎÂ¶ÈÔÚ50-100¡ãC·¶Î§ÄÚ
+    if (limit > 100) limit = 100;  // ÉÏÏŞÏŞÖÆ
+    if (limit < 50)  limit = 50;   // ÏÂÏŞÏŞÖÆ
+    
+    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_TEMP_MAX_LIMIT_WRITE);  // ³õÊ¼»¯ÎÂ¶ÈÏŞÖÆÃüÁî
+    frame.elements.args[0] = (uint8_t)limit;  // ÎÂ¶ÈÖµ
+    cmd_frame_complete(&frame, 1);            // Íê³ÉÖ¡£¬1¸ö²ÎÊı
+    self->serial_write_and_read(self, &frame, true);  // ·¢ËÍÃüÁî£¨Ö»Ğ´£©
+}
+
+/**
+ * ============================================================================
+ * @brief   ¶ÁÈ¡¶æ»úÎÂ¶ÈÉÏÏŞ
+ * @details ²éÑ¯¶æ»úµ±Ç°Éè¶¨µÄ×î¸ß¹¤×÷ÎÂ¶È
+ * @param   self     - Ö¸Ïò¶æ»ú¿ØÖÆÆ÷µÄÖ¸Õë
+ * @param   servo_id - Ä¿±ê¶æ»úµÄID
+ * @param   limit    - Ö¸Ïò´æ´¢ÏŞÖÆÖµµÄÖ¸Õë£¬µ¥Î»¶ÈC
+ * @return  0±íÊ¾³É¹¦¶ÁÈ¡£¬-1±íÊ¾Í¨ĞÅÊ§°Ü
+ * ============================================================================
+ */
+int serial_servo_read_temp_limit(SerialServoControllerTypeDef *self, uint32_t servo_id, uint8_t *limit)
+{
+    SerialServoCmdTypeDef frame;
+    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_TEMP_MAX_LIMIT_READ);  // ³õÊ¼»¯¶ÁÎÂ¶ÈÏŞÖÆÃüÁî
+    cmd_frame_complete(&frame, 0);                                             // Íê³ÉÖ¡£¬ÎŞ²ÎÊı
+    if (0 == self->serial_write_and_read(self, &frame, false)) {               // ·¢ËÍ²¢µÈ´ıÏìÓ¦
+        *limit = self->rx_frame.elements.args[0];                             // ÌáÈ¡ÎÂ¶ÈÏŞÖÆÖµ
+        return 0;                                                              // ·µ»Ø³É¹¦
+    }
+    return -1;                                                                 // ·µ»ØÊ§°Ü
+}
+
+/**
+ * ============================================================================
+ * @brief   ¶ÁÈ¡¶æ»úµ±Ç°ÎÂ¶È
+ * @details ²éÑ¯¶æ»úÄÚ²¿µÄÊµÊ±ÎÂ¶ÈÖµ£¬ÓÃÓÚÎÂ¶È¼à²âºÍ¹ıÎÂ±£»¤
+ * @param   self     - Ö¸Ïò¶æ»ú¿ØÖÆÆ÷µÄÖ¸Õë
+ * @param   servo_id - Ä¿±ê¶æ»úµÄID
+ * @param   temp     - Ö¸Ïò´æ´¢ÎÂ¶ÈÖµµÄÖ¸Õë£¬µ¥Î»¶ÈC
+ * @return  0±íÊ¾³É¹¦¶ÁÈ¡£¬-1±íÊ¾Í¨ĞÅÊ§°Ü
+ * @note    ·µ»ØÖµÎªuint8_t£¬·¶Î§0-255¡ãC£¬µäĞÍ¹¤×÷ÎÂ¶È5-60¡ãC
+ * ============================================================================
+ */
+int serial_servo_read_temp(SerialServoControllerTypeDef *self, uint32_t servo_id, uint8_t *temp)
+{
+    SerialServoCmdTypeDef frame;
+    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_TEMP_READ);  // ³õÊ¼»¯¶ÁÎÂ¶ÈÃüÁî
+    cmd_frame_complete(&frame, 0);                                     // Íê³ÉÖ¡£¬ÎŞ²ÎÊı
+    if (0 == self->serial_write_and_read(self, &frame, false)) {       // ·¢ËÍ²¢µÈ´ıÏìÓ¦
+        *temp = self->rx_frame.elements.args[0];                       // ÌáÈ¡ÎÂ¶ÈÖµ
+        return 0;                                                       // ·µ»Ø³É¹¦
+    }
+    return -1;                                                          // ·µ»ØÊ§°Ü
+}
+
+/**
+ * ============================================================================
+ * @brief   ÉèÖÃ¶æ»úÊäÈëµçÑ¹ÏŞÖÆ·¶Î§
+ * @details ÏŞÖÆ¶æ»úÔÊĞíµÄ¹¤×÷µçÑ¹·¶Î§£¬³¬³ö·¶Î§¶æ»ú»á×Ô¶¯½µËÙ»òÍ£Ö¹£¬±£»¤Ó²¼ş
+ * @param   self     - Ö¸Ïò¶æ»ú¿ØÖÆÆ÷µÄÖ¸Õë
+ * @param   servo_id - Ä¿±ê¶æ»úµÄID
+ * @param   limit_l  - ÏÂÏŞµçÑ¹£¬µ¥Î»:0.1V£¬·¶Î§4500-14000(¼´4.5V-14V)
+ * @param   limit_h  - ÉÏÏŞµçÑ¹£¬µ¥Î»:0.1V£¬·¶Î§4500-14000(¼´4.5V-14V)
+ * @return  ÎŞ
+ * @note    ×Ô¶¯¾ÀÕı²ÎÊı´óĞ¡¹ØÏµ£»Öµ»á×Ô¶¯ÏŞÖÆÔÚ4500-14000·¶Î§£»
+ *          µçÑ¹Öµµ¥Î»Îª0.1V£¬Èçlimit_l=5000´ú±í5V
+ * ============================================================================
+ */
+void serial_servo_set_vin_limit(SerialServoControllerTypeDef *self, uint32_t servo_id, uint32_t limit_l, uint32_t limit_h)
+{
+    SerialServoCmdTypeDef frame;
+    // ÏŞÖÆËùÓĞÖµÔÚ4500-14000·¶Î§ÄÚ(4.5V-14V)
+    if (limit_l < 4500)  limit_l = 4500;    // ÏÂÏŞ±£»¤
+    if (limit_l > 14000) limit_l = 14000;   // ÉÏÏŞ±£»¤
+    if (limit_h < 4500)  limit_h = 4500;    // ÏÂÏŞ±£»¤
+    if (limit_h > 14000) limit_h = 14000;   // ÉÏÏŞ±£»¤
+    
+    // ×Ô¶¯¾ÀÕıÉÏÏÂÏŞ¹ØÏµ£¬È·±£real_limit_l < real_limit_h
+    uint32_t real_limit_l = (limit_l > limit_h) ? limit_h : limit_l;  // È·±£Îª½ÏĞ¡Öµ
+    uint32_t real_limit_h = (limit_l > limit_h) ? limit_l : limit_h;  // È·±£Îª½Ï´óÖµ
+    
+    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_VIN_LIMIT_WRITE);  // ³õÊ¼»¯µçÑ¹ÏŞÖÆÃüÁî
+    frame.elements.args[0] = GET_LOW_BYTE(real_limit_l);    // ÏÂÏŞµÍbyte
+    frame.elements.args[1] = GET_HIGH_BYTE(real_limit_l);   // ÏÂÏŞ¸ßbyte
+    frame.elements.args[2] = GET_LOW_BYTE(real_limit_h);    // ÉÏÏŞµÍbyte
+    frame.elements.args[3] = GET_HIGH_BYTE(real_limit_h);   // ÉÏÏŞ¸ßbyte
+    cmd_frame_complete(&frame, 4);                          // Íê³ÉÖ¡£¬4¸ö²ÎÊı
+    self->serial_write_and_read(self, &frame, true);        // ·¢ËÍÃüÁî£¨Ö»Ğ´£©
+}
+
+/**
+ * ============================================================================
+ * @brief   ¶ÁÈ¡¶æ»úµçÑ¹ÏŞÖÆ·¶Î§
+ * @details ²éÑ¯¶æ»úµ±Ç°Éè¶¨µÄÊäÈëµçÑ¹ÏŞÖÆÖµ
+ * @param   self     - Ö¸Ïò¶æ»ú¿ØÖÆÆ÷µÄÖ¸Õë
+ * @param   servo_id - Ä¿±ê¶æ»úµÄID
+ * @param   limit    - Ö¸ÏòÊı×éµÄÖ¸Õë£¬[0]´æ´¢ÏÂÏŞ£¬[1]´æ´¢ÉÏÏŞ£¬µ¥Î»:0.1V
+ * @return  0±íÊ¾³É¹¦¶ÁÈ¡£¬-1±íÊ¾Í¨ĞÅÊ§°Ü
+ * @note    ·µ»ØÖµµ¥Î»Îª0.1V£¬ÈçÖµ5000±íÊ¾5V£»limit[0]=ÏÂÏŞ£¬limit[1]=ÉÏÏŞ
+ * ============================================================================
+ */
+int serial_servo_read_vin_limit(SerialServoControllerTypeDef *self, uint32_t servo_id, uint16_t limit[2])
+{
+    SerialServoCmdTypeDef frame;
+    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_VIN_LIMIT_READ);  // ³õÊ¼»¯¶ÁµçÑ¹ÏŞÖÆÃüÁî
+    cmd_frame_complete(&frame, 0);                                         // Íê³ÉÖ¡£¬ÎŞ²ÎÊı
+    if (0 == self->serial_write_and_read(self, &frame, false)) {           // ·¢ËÍ²¢µÈ´ıÏìÓ¦
+        // ×éºÏÁ½¸öbyteÎª16Î»Öµ£¬´æ´¢ÏÂÏŞ
+        limit[0] = BYTE_TO_HW(self->rx_frame.elements.args[1], self->rx_frame.elements.args[0]);
+        // ×éºÏÁ½¸öbyteÎª16Î»Öµ£¬´æ´¢ÉÏÏŞ
+        limit[1] = BYTE_TO_HW(self->rx_frame.elements.args[3], self->rx_frame.elements.args[2]);
+        return 0;                                                           // ·µ»Ø³É¹¦
+    }
+    return -1;                                                              // ·µ»ØÊ§°Ü
+}
+
+/**
+ * ============================================================================
+ * @brief   ¶ÁÈ¡¶æ»úµ±Ç°ÊäÈëµçÑ¹
+ * @details ²éÑ¯¶æ»úµÄÊµÊ±ÊäÈëµçÑ¹Öµ£¬ÓÃÓÚµçÔ´¼à²âºÍ¹ÊÕÏÕï¶Ï
+ * @param   self     - Ö¸Ïò¶æ»ú¿ØÖÆÆ÷µÄÖ¸Õë
+ * @param   servo_id - Ä¿±ê¶æ»úµÄID
+ * @param   vin      - Ö¸Ïò´æ´¢µçÑ¹ÖµµÄÖ¸Õë£¬µ¥Î»:0.1V
+ * @return  0±íÊ¾³É¹¦¶ÁÈ¡£¬-1±íÊ¾Í¨ĞÅÊ§°Ü
+ * @note    ·µ»ØÖµµ¥Î»Îª0.1V£¬Èçvin=5000±íÊ¾5.0V£»µäĞÍ·¶Î§5000-12000(5V-12V)
+ * ============================================================================
+ */
+int serial_servo_read_vin(SerialServoControllerTypeDef *self, uint32_t servo_id, uint16_t *vin)
+{
+    SerialServoCmdTypeDef frame;
+    cmd_frame_init(&frame, (uint8_t)servo_id, SERIAL_SERVO_VIN_READ);  // ³õÊ¼»¯¶ÁµçÑ¹ÃüÁî
+    cmd_frame_complete(&frame, 0);                                    // Íê³ÉÖ¡£¬ÎŞ²ÎÊı
+    if (0 == self->serial_write_and_read(self, &frame, false)) {      // ·¢ËÍ²¢µÈ´ıÏìÓ¦
+        // ×éºÏÁ½¸öbyteÎª16Î»µçÑ¹Öµ
+        *vin = BYTE_TO_HW(self->rx_frame.elements.args[1], self->rx_frame.elements.args[0]);
+        return 0;                                                      // ·µ»Ø³É¹¦
+    }
+    return -1;                                                         // ·µ»ØÊ§°Ü
+}
+
+/**
+ * ============================================================================
+ * @brief   ¶æ»ú¿ØÖÆÆ÷¶ÔÏó³õÊ¼»¯
+ * @details ³õÊ¼»¯¶æ»ú¿ØÖÆÆ÷µÄËùÓĞ³ÉÔ±±äÁ¿£¬°üÀ¨×´Ì¬»ú¡¢»º³åÇøºÍ»Øµ÷º¯Êı
+ * @param   self - Ö¸Ïò¶æ»ú¿ØÖÆÆ÷½á¹¹ÌåµÄÖ¸Õë
+ * @return  ÎŞ
+ * @note    ĞèÒªÔÚÊ¹ÓÃÇ°µ÷ÓÃ´Ëº¯Êı£»³õÊ¼»¯ºóĞèÒªÉèÖÃserial_write_and_read»Øµ÷º¯Êı
+ * ============================================================================
+ */
+void serial_servo_controller_object_init(SerialServoControllerTypeDef *self)
+{
+    self->proc_timeout = 8;                                    // ÉèÖÃ´¦Àí³¬Ê±Ê±¼ä(µ¥Î»´ı¶¨)
+    self->rx_args_index = 0;                                   // ÇåÁã½ÓÊÕ²ÎÊıË÷Òı
+    self->rx_state = SERIAL_SERVO_RECV_STARTBYTE_1;           // ³õÊ¼»¯½ÓÊÕ×´Ì¬ÎªµÈ´ıµÚÒ»¸öÖ¡Í·
+    self->rx_completed = false;                                // ½ÓÊÕÍê³É±êÖ¾ÖÃÎªfalse
+    memset(&self->rx_frame, 0, sizeof(SerialServoCmdTypeDef)); // Çå¿Õ½ÓÊÕÖ¡»º³åÇø
+    self->tx_only = true;                                      // ÉèÖÃÎªÖ»·¢ËÍÄ£Ê½
+    self->tx_byte_index = 0;                                   // ÇåÁã·¢ËÍbyteË÷Òı
+    memset(&self->tx_frame, 0, sizeof(SerialServoCmdTypeDef)); // Çå¿Õ·¢ËÍÖ¡»º³åÇø
+    self->serial_write_and_read = NULL;                        // Çå¿Õ»Øµ÷º¯ÊıÖ¸Õë(ĞèÒªºóĞø¸³Öµ)
+}

@@ -1,7 +1,7 @@
 /**
  * *****************************************************************************
  * @file    serial_servo_hal.h
- * @brief   �������߶�� STM32F103C8T6 Ӳ����ֲ��ͷ�ļ� (USART1 ר��)
+ * @brief   串口总线舵机 STM32F103C8T6 硬件移植层头文件 (USART1 专用)
  * *****************************************************************************
  */
 
@@ -11,20 +11,20 @@
 #include "stm32f1xx_hal.h"
 #include "serial_servo.h"
 
-/* ========================== �������Ӳ������ ========================== */
+/* ========================== 舵机总线硬件配置 ========================== */
 
-/* �����߶�����ӵĴ��ھ�� (USART1) */
+/* 绑定总线舵机连接的串口句柄 (USART1) */
 extern UART_HandleTypeDef huart1;
 #define SERIAL_SERVO_UART              huart1
 
-/* ��˫��ͨ��ģʽ���� 
- * 1: ʹ�� STM32 ���õ��߰�˫��ģʽ (ֻ�� PA9/TX ���ţ��ⲿ����� 4.7K~10K�� ��������)
- * 0: ʹ�������շ������л�оƬ (˫���ſ���)
+/* 半双工通信模式开关 
+ * 1: 使用 STM32 内置单线半双工模式 (只接 PA9/TX 引脚，外部必须接 4.7K~10KΩ 上拉电阻)
+ * 0: 使用外置收发方向切换芯片 (双引脚控制)
  */
 #define SERIAL_SERVO_USE_SINGLE_WIRE   1
 
 #if !SERIAL_SERVO_USE_SINGLE_WIRE
-/* ��Ϊ����оƬ���ڴ˴����þ����ʹ�ܿ������� */
+/* 若为外置芯片，在此处配置具体的使能控制引脚 */
 #define SERIAL_SERVO_RX_EN_PORT        GPIOB
 #define SERIAL_SERVO_RX_EN_PIN         GPIO_PIN_0
 #define SERIAL_SERVO_TX_EN_PORT        GPIOB
@@ -33,7 +33,7 @@ extern UART_HandleTypeDef huart1;
 
 /* ===================================================================== */
 
-/* ����̬��ת�궨�� */
+/* 方向动态翻转宏定义 */
 #if SERIAL_SERVO_USE_SINGLE_WIRE
 #define SERIAL_SERVO_DIR_TX()     HAL_HalfDuplex_EnableTransmitter(&SERIAL_SERVO_UART)
 #define SERIAL_SERVO_DIR_RX()     HAL_HalfDuplex_EnableReceiver(&SERIAL_SERVO_UART)
@@ -53,10 +53,10 @@ extern UART_HandleTypeDef huart1;
 } while(0)
 #endif
 
-/* ����ȫ��Ψһ�����߶������������ */
+/* 声明全局唯一的总线舵机控制器对象 */
 extern SerialServoControllerTypeDef g_serial_servo_controller;
 
-/* --- �ⲿ�ɵ�����ֲ�ӿ� --- */
+/* --- 外部可调用移植接口 --- */
 void Serial_Servo_HAL_Init(void);
 void Serial_Servo_RxCallback(UART_HandleTypeDef *huart);
 

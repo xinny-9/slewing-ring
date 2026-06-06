@@ -2,7 +2,7 @@
  * *****************************************************************************
  * @file    serial_servo.h
  * @author  Antigravity
- * @brief   ´®¿Ú×ÜÏß¶æ»úºËĞÄĞ­ÒéÓë¿ØÖÆÆ÷¶¨ÒåÍ·ÎÄ¼ş (STM32F103C8T6 Âã»úÓÅ»¯°æ)
+ * @brief   ä¸²å£æ€»çº¿èˆµæœºæ ¸å¿ƒåè®®ä¸æ§åˆ¶å™¨å®šä¹‰å¤´æ–‡ä»¶ (STM32F103C8T6 è£¸æœºä¼˜åŒ–ç‰ˆ)
  * *****************************************************************************
  */
 
@@ -15,100 +15,100 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-/* --- »Ã¶û×ÜÏß¶æ»úÍ¨ĞÅĞ­ÒéÖ¸Áî¶¨Òå --- */
-#define SERIAL_SERVO_FRAME_HEADER         0x55    // Ö¡Í· (Á¬ĞøÁ½¸ö 0x55)
-#define SERIAL_SERVO_MOVE_TIME_WRITE      1       // Ğ´Èë¶æ»úÎ»ÖÃÓëÔËĞĞÊ±¼ä
-#define SERIAL_SERVO_MOVE_TIME_READ       2       // ¶ÁÈ¡¶æ»úÎ»ÖÃÓëÔËĞĞÊ±¼ä
-#define SERIAL_SERVO_MOVE_TIME_WAIT_WRITE 7       // Ğ´Èë¶æ»úÔ¤±¸ÔËĞĞÎ»ÖÃÓëÊ±¼ä
-#define SERIAL_SERVO_MOVE_TIME_WAIT_READ  8       // ¶ÁÈ¡¶æ»úÔ¤±¸ÔËĞĞÎ»ÖÃÓëÊ±¼ä
-#define SERIAL_SERVO_MOVE_START           11      // Æô¶¯Ô¤±¸ÔËĞĞµÄ¶æ»ú
-#define SERIAL_SERVO_MOVE_STOP            12      // ½ô¼±Í£Ö¹¶æ»ú
-#define SERIAL_SERVO_ID_WRITE             13      // Ğ´Èë¶æ»úID
-#define SERIAL_SERVO_ID_READ              14      // ¶ÁÈ¡¶æ»úID
-#define SERIAL_SERVO_ANGLE_OFFSET_ADJUST  17      // µ÷Õû¶æ»úÆ«²î(ÁÙÊ±)
-#define SERIAL_SERVO_ANGLE_OFFSET_WRITE   18      // ±£´æ¶æ»úÆ«²î(¹Ì»¯)
-#define SERIAL_SERVO_ANGLE_OFFSET_READ    19      // ¶ÁÈ¡¶æ»úÆ«²î
-#define SERIAL_SERVO_ANGLE_LIMIT_WRITE    20      // Ğ´Èë½Ç¶ÈÏŞÖÆ·¶Î§
-#define SERIAL_SERVO_ANGLE_LIMIT_READ     21      // ¶ÁÈ¡½Ç¶ÈÏŞÖÆ·¶Î§
-#define SERIAL_SERVO_VIN_LIMIT_WRITE      22      // Ğ´ÈëµçÑ¹ÏŞÖÆ·¶Î§
-#define SERIAL_SERVO_VIN_LIMIT_READ       23      // ¶ÁÈ¡µçÑ¹ÏŞÖÆ·¶Î§
-#define SERIAL_SERVO_TEMP_MAX_LIMIT_WRITE 24      // Ğ´Èë×î¸ßÎÂ¶ÈÏŞÖÆ
-#define SERIAL_SERVO_TEMP_MAX_LIMIT_READ  25      // ¶ÁÈ¡×î¸ßÎÂ¶ÈÏŞÖÆ
-#define SERIAL_SERVO_TEMP_READ            26      // ¶ÁÈ¡µ±Ç°ÎÂ¶È
-#define SERIAL_SERVO_VIN_READ             27      // ¶ÁÈ¡µ±Ç°µçÑ¹
-#define SERIAL_SERVO_POS_READ             28      // ¶ÁÈ¡µ±Ç°½Ç¶È/Î»ÖÃ
-#define SERIAL_SERVO_OR_MOTOR_MODE_WRITE  29      // Ğ´Èë¶æ»ú»òµç»ú¹¤×÷Ä£Ê½
-#define SERIAL_SERVO_OR_MOTOR_MODE_READ   30      // ¶ÁÈ¡¹¤×÷Ä£Ê½
-#define SERIAL_SERVO_LOAD_OR_UNLOAD_WRITE 31      // ¶æ»úµôµçÊÍ·Å/ÉÏµçËø×©
-#define SERIAL_SERVO_LOAD_OR_UNLOAD_READ  32      // ¶ÁÈ¡¶æ»úÅ¤¾Ø¿ª¹Ø×´Ì¬
-#define SERIAL_SERVO_LED_CTRL_WRITE       33      // Ğ´ÈëLED¿ØÖÆ¿ª¹Ø
-#define SERIAL_SERVO_LED_CTRL_READ        34      // ¶ÁÈ¡LED¿ØÖÆ¿ª¹Ø
-#define SERIAL_SERVO_LED_ERROR_WRITE      35      // Ğ´ÈëLED±¨¾¯¹ÊÕÏÀàĞÍ
-#define SERIAL_SERVO_LED_ERROR_READ       36      // ¶ÁÈ¡LED±¨¾¯¹ÊÕÏÀàĞÍ
+/* --- å¹»å°”æ€»çº¿èˆµæœºé€šä¿¡åè®®æŒ‡ä»¤å®šä¹‰ --- */
+#define SERIAL_SERVO_FRAME_HEADER         0x55    // å¸§å¤´ (è¿ç»­ä¸¤ä¸ª 0x55)
+#define SERIAL_SERVO_MOVE_TIME_WRITE      1       // å†™å…¥èˆµæœºä½ç½®ä¸è¿è¡Œæ—¶é—´
+#define SERIAL_SERVO_MOVE_TIME_READ       2       // è¯»å–èˆµæœºä½ç½®ä¸è¿è¡Œæ—¶é—´
+#define SERIAL_SERVO_MOVE_TIME_WAIT_WRITE 7       // å†™å…¥èˆµæœºé¢„å¤‡è¿è¡Œä½ç½®ä¸æ—¶é—´
+#define SERIAL_SERVO_MOVE_TIME_WAIT_READ  8       // è¯»å–èˆµæœºé¢„å¤‡è¿è¡Œä½ç½®ä¸æ—¶é—´
+#define SERIAL_SERVO_MOVE_START           11      // å¯åŠ¨é¢„å¤‡è¿è¡Œçš„èˆµæœº
+#define SERIAL_SERVO_MOVE_STOP            12      // ç´§æ€¥åœæ­¢èˆµæœº
+#define SERIAL_SERVO_ID_WRITE             13      // å†™å…¥èˆµæœºID
+#define SERIAL_SERVO_ID_READ              14      // è¯»å–èˆµæœºID
+#define SERIAL_SERVO_ANGLE_OFFSET_ADJUST  17      // è°ƒæ•´èˆµæœºåå·®(ä¸´æ—¶)
+#define SERIAL_SERVO_ANGLE_OFFSET_WRITE   18      // ä¿å­˜èˆµæœºåå·®(å›ºåŒ–)
+#define SERIAL_SERVO_ANGLE_OFFSET_READ    19      // è¯»å–èˆµæœºåå·®
+#define SERIAL_SERVO_ANGLE_LIMIT_WRITE    20      // å†™å…¥è§’åº¦é™åˆ¶èŒƒå›´
+#define SERIAL_SERVO_ANGLE_LIMIT_READ     21      // è¯»å–è§’åº¦é™åˆ¶èŒƒå›´
+#define SERIAL_SERVO_VIN_LIMIT_WRITE      22      // å†™å…¥ç”µå‹é™åˆ¶èŒƒå›´
+#define SERIAL_SERVO_VIN_LIMIT_READ       23      // è¯»å–ç”µå‹é™åˆ¶èŒƒå›´
+#define SERIAL_SERVO_TEMP_MAX_LIMIT_WRITE 24      // å†™å…¥æœ€é«˜æ¸©åº¦é™åˆ¶
+#define SERIAL_SERVO_TEMP_MAX_LIMIT_READ  25      // è¯»å–æœ€é«˜æ¸©åº¦é™åˆ¶
+#define SERIAL_SERVO_TEMP_READ            26      // è¯»å–å½“å‰æ¸©åº¦
+#define SERIAL_SERVO_VIN_READ             27      // è¯»å–å½“å‰ç”µå‹
+#define SERIAL_SERVO_POS_READ             28      // è¯»å–å½“å‰è§’åº¦/ä½ç½®
+#define SERIAL_SERVO_OR_MOTOR_MODE_WRITE  29      // å†™å…¥èˆµæœºæˆ–ç”µæœºå·¥ä½œæ¨¡å¼
+#define SERIAL_SERVO_OR_MOTOR_MODE_READ   30      // è¯»å–å·¥ä½œæ¨¡å¼
+#define SERIAL_SERVO_LOAD_OR_UNLOAD_WRITE 31      // èˆµæœºæ‰ç”µé‡Šæ”¾/ä¸Šç”µé”ç –
+#define SERIAL_SERVO_LOAD_OR_UNLOAD_READ  32      // è¯»å–èˆµæœºæ‰­çŸ©å¼€å…³çŠ¶æ€
+#define SERIAL_SERVO_LED_CTRL_WRITE       33      // å†™å…¥LEDæ§åˆ¶å¼€å…³
+#define SERIAL_SERVO_LED_CTRL_READ        34      // è¯»å–LEDæ§åˆ¶å¼€å…³
+#define SERIAL_SERVO_LED_ERROR_WRITE      35      // å†™å…¥LEDæŠ¥è­¦æ•…éšœç±»å‹
+#define SERIAL_SERVO_LED_ERROR_READ       36      // è¯»å–LEDæŠ¥è­¦æ•…éšœç±»å‹
 
 #define CMD_SERVO_MOVE 0x03
 
 #pragma pack(1)
 /**
- * @brief ´®¿Ú×ÜÏß¶æ»úÍ¨ĞÅÊı¾İÖ¡½á¹¹Ìå
+ * @brief ä¸²å£æ€»çº¿èˆµæœºé€šä¿¡æ•°æ®å¸§ç»“æ„ä½“
  */
 typedef struct {
-    uint8_t header_1;   // Ö¡Í·1 (0x55)
-    uint8_t header_2;   // Ö¡Í·2 (0x55)
+    uint8_t header_1;   // å¸§å¤´1 (0x55)
+    uint8_t header_2;   // å¸§å¤´2 (0x55)
     union {
         struct {
-            uint8_t servo_id;   // ¶æ»úID (0~253, 254Îª¹ã²¥ID)
-            uint8_t length;     // Êı¾İ³¤¶È (µÈÓÚ£º²ÎÊı¸öÊı + 3)
-            uint8_t command;    // ¿ØÖÆÖ¸Áî
-            uint8_t args[8];    // »º´æ²ÎÊıÓë×îºóµÄĞ£ÑéºÍ×Ö½Ú (×î´ó³¤¶ÈÎª8)
+            uint8_t servo_id;   // èˆµæœºID (0~253, 254ä¸ºå¹¿æ’­ID)
+            uint8_t length;     // æ•°æ®é•¿åº¦ (ç­‰äºï¼šå‚æ•°ä¸ªæ•° + 3)
+            uint8_t command;    // æ§åˆ¶æŒ‡ä»¤
+            uint8_t args[8];    // ç¼“å­˜å‚æ•°ä¸æœ€åçš„æ ¡éªŒå’Œå­—èŠ‚ (æœ€å¤§é•¿åº¦ä¸º8)
         } elements;
-        uint8_t data_raw[11];   // Ô­Ê¼Ò»Î¬Êı×é£¬·½±ãÎïÀí²ã°´×Ö½ÚÊÕ·¢ÓëĞ£Ñé
+        uint8_t data_raw[11];   // åŸå§‹ä¸€ç»´æ•°ç»„ï¼Œæ–¹ä¾¿ç‰©ç†å±‚æŒ‰å­—èŠ‚æ”¶å‘ä¸æ ¡éªŒ
     };
 } SerialServoCmdTypeDef;
 #pragma pack()
 
 /**
- * @brief ´®¿Ú½ÓÊÕ×´Ì¬»úÃ¶¾Ù
+ * @brief ä¸²å£æ¥æ”¶çŠ¶æ€æœºæšä¸¾
  */
 typedef enum {
-    SERIAL_SERVO_RECV_STARTBYTE_1,  // Ñ°ÕÒÖ¡Í·1 (0x55)
-    SERIAL_SERVO_RECV_STARTBYTE_2,  // Ñ°ÕÒÖ¡Í·2 (0x55)
-    SERIAL_SERVO_RECV_SERVO_ID,     // ½ÓÊÕ¶æ»úID
-    SERIAL_SERVO_RECV_LENGTH,       // ½ÓÊÕÊı¾İ³¤¶È
-    SERIAL_SERVO_RECV_COMMAND,      // ½ÓÊÕÖ¸ÁîÂë
-    SERIAL_SERVO_RECV_ARGUMENTS,    // ½ÓÊÕ²ÎÊıÊı¾İ
-    SERIAL_SERVO_RECV_CHECKSUM,     // ½ÓÊÕĞ£ÑéºÍ
+    SERIAL_SERVO_RECV_STARTBYTE_1,  // å¯»æ‰¾å¸§å¤´1 (0x55)
+    SERIAL_SERVO_RECV_STARTBYTE_2,  // å¯»æ‰¾å¸§å¤´2 (0x55)
+    SERIAL_SERVO_RECV_SERVO_ID,     // æ¥æ”¶èˆµæœºID
+    SERIAL_SERVO_RECV_LENGTH,       // æ¥æ”¶æ•°æ®é•¿åº¦
+    SERIAL_SERVO_RECV_COMMAND,      // æ¥æ”¶æŒ‡ä»¤ç 
+    SERIAL_SERVO_RECV_ARGUMENTS,    // æ¥æ”¶å‚æ•°æ•°æ®
+    SERIAL_SERVO_RECV_CHECKSUM,     // æ¥æ”¶æ ¡éªŒå’Œ
 } SerialServoRecvState;
 
-/* Ç°ÏòÉùÃ÷¿ØÖÆÆ÷½á¹¹Ìå */
+/* å‰å‘å£°æ˜æ§åˆ¶å™¨ç»“æ„ä½“ */
 typedef struct SerialServoControllerTypeDef SerialServoControllerTypeDef;
 
 /**
- * @brief ×ÜÏß¶æ»ú¿ØÖÆÆ÷ºËĞÄ¹ÜÀí½á¹¹Ìå
+ * @brief æ€»çº¿èˆµæœºæ§åˆ¶å™¨æ ¸å¿ƒç®¡ç†ç»“æ„ä½“
  */
 struct SerialServoControllerTypeDef {
-    SerialServoRecvState rx_state;     // ´®¿Ú½ÓÊÕ½âÎö×´Ì¬»ú×´Ì¬
-    SerialServoCmdTypeDef rx_frame;    // ½ÓÊÕµ½µÄÊı¾İÖ¡
-    uint32_t rx_args_index;            // ²ÎÊı½ÓÊÕ¼ÆÊıÆ÷
-    volatile bool rx_completed;        // ½ÓÊÕÍê³É±êÖ¾ (ÕûÖ¡Ğ£ÑéÍ¨¹ıºóÖÃÎ»)
+    SerialServoRecvState rx_state;     // ä¸²å£æ¥æ”¶è§£æçŠ¶æ€æœºçŠ¶æ€
+    SerialServoCmdTypeDef rx_frame;    // æ¥æ”¶åˆ°çš„æ•°æ®å¸§
+    uint32_t rx_args_index;            // å‚æ•°æ¥æ”¶è®¡æ•°å™¨
+    volatile bool rx_completed;        // æ¥æ”¶å®Œæˆæ ‡å¿— (æ•´å¸§æ ¡éªŒé€šè¿‡åç½®ä½)
 
-    SerialServoCmdTypeDef tx_frame;    // ×¼±¸·¢ËÍµÄÊı¾İÖ¡
-    uint32_t tx_byte_index;            // ×Ö½Ú·¢ËÍ¼ÆÊıÆ÷
-    bool tx_only;                      // ±¾´ÎÖ¸ÁîÊÇ·ñÎªµ¥Ïò·¢ËÍ(ÎŞĞèµÈ´ı¶æ»ú»Ø´«Êı¾İ)
+    SerialServoCmdTypeDef tx_frame;    // å‡†å¤‡å‘é€çš„æ•°æ®å¸§
+    uint32_t tx_byte_index;            // å­—èŠ‚å‘é€è®¡æ•°å™¨
+    bool tx_only;                      // æœ¬æ¬¡æŒ‡ä»¤æ˜¯å¦ä¸ºå•å‘å‘é€(æ— éœ€ç­‰å¾…èˆµæœºå›ä¼ æ•°æ®)
 
-    uint32_t proc_timeout;             // ÎïÀí²ãµÈ´ıÓ¦´ğµÄ³¬Ê±Ê±¼äÏŞÖÆ (µ¥Î»£ºms)
+    uint32_t proc_timeout;             // ç‰©ç†å±‚ç­‰å¾…åº”ç­”çš„è¶…æ—¶æ—¶é—´é™åˆ¶ (å•ä½ï¼šms)
 
     /**
-     * @brief ÎïÀí²ãÇı¶¯Ğ´Óë¶ÁµÄ»Øµ÷º¯ÊıÖ¸Õë
-     * @param self    ¿ØÖÆÆ÷½á¹¹ÌåÖ¸Õë
-     * @param frame   ´ı·¢ËÍµÄÊı¾İÖ¡Ö¸Õë
-     * @param tx_only ±¾´Î²Ù×÷ÊÇ·ñ½ö·¢ËÍ²»½ÓÊÕ
-     * @retval 0: ³É¹¦, -1: ÎïÀí²ãµÈ´ı½ÓÊÕ³¬Ê±, ÆäËû: Ó²¼ş¹ÊÕÏ
+     * @brief ç‰©ç†å±‚é©±åŠ¨å†™ä¸è¯»çš„å›è°ƒå‡½æ•°æŒ‡é’ˆ
+     * @param self    æ§åˆ¶å™¨ç»“æ„ä½“æŒ‡é’ˆ
+     * @param frame   å¾…å‘é€çš„æ•°æ®å¸§æŒ‡é’ˆ
+     * @param tx_only æœ¬æ¬¡æ“ä½œæ˜¯å¦ä»…å‘é€ä¸æ¥æ”¶
+     * @retval 0: æˆåŠŸ, -1: ç‰©ç†å±‚ç­‰å¾…æ¥æ”¶è¶…æ—¶, å…¶ä»–: ç¡¬ä»¶æ•…éšœ
      */
     int (*serial_write_and_read)(SerialServoControllerTypeDef *self, SerialServoCmdTypeDef *frame, bool tx_only);
 };
 
-/* --- ºËĞÄ¿ØÖÆÓëÅäÖÃAPIº¯ÊıÉùÃ÷ --- */
+/* --- æ ¸å¿ƒæ§åˆ¶ä¸é…ç½®APIå‡½æ•°å£°æ˜ --- */
 void serial_servo_controller_object_init(SerialServoControllerTypeDef *self);
 void serial_servo_set_id(SerialServoControllerTypeDef *self, uint32_t old_id, uint32_t new_id);
 int serial_servo_read_id(SerialServoControllerTypeDef *self, uint32_t servo_id, uint8_t *ret_servo_id);
@@ -130,9 +130,9 @@ int serial_servo_read_vin_limit(SerialServoControllerTypeDef *self, uint32_t ser
 int serial_servo_read_vin(SerialServoControllerTypeDef *self, uint32_t servo_id, uint16_t *vin);
 
 /**
- * @brief ¼ÆËã×ÜÏß¶æ»úĞ­ÒéÖ¡µÄĞ£ÑéºÍ (Checksum)
- * @param buf Êı¾İ°üÆğÊ¼µØÖ·
- * @return ¼ÆËã³öµÄ1×Ö½ÚĞ£ÑéºÍÖµ
+ * @brief è®¡ç®—æ€»çº¿èˆµæœºåè®®å¸§çš„æ ¡éªŒå’Œ (Checksum)
+ * @param buf æ•°æ®åŒ…èµ·å§‹åœ°å€
+ * @return è®¡ç®—å‡ºçš„1å­—èŠ‚æ ¡éªŒå’Œå€¼
  */
 static inline uint8_t serial_servo_checksum(const uint8_t buf[])
 {
@@ -144,7 +144,7 @@ static inline uint8_t serial_servo_checksum(const uint8_t buf[])
 }
 
 /**
- * @brief ´®¿Ú×ÜÏß¶æ»úÖĞ¶Ï½ÓÊÕ½âÎö×´Ì¬»ú´¦ÀíÆ÷
+ * @brief ä¸²å£æ€»çº¿èˆµæœºä¸­æ–­æ¥æ”¶è§£æçŠ¶æ€æœºå¤„ç†å™¨
  */
 static inline int serial_servo_rx_handler(SerialServoControllerTypeDef *self, uint8_t rx_byte)
 {
@@ -200,7 +200,7 @@ static inline int serial_servo_rx_handler(SerialServoControllerTypeDef *self, ui
         case SERIAL_SERVO_RECV_CHECKSUM: {
             self->rx_state = SERIAL_SERVO_RECV_STARTBYTE_1; 
             if (serial_servo_checksum((uint8_t*)&self->rx_frame) == rx_byte) {
-                self->rx_completed = true; // ±êÖ¾ÕûÖ¡³É¹¦½ÓÊÕ²¢Ğ£ÑéÍ¨¹ı
+                self->rx_completed = true; // æ ‡å¿—æ•´å¸§æˆåŠŸæ¥æ”¶å¹¶æ ¡éªŒé€šè¿‡
                 return 0; 
             } else {
                 return -99; 
