@@ -23,6 +23,8 @@
 static Emm_V5_Motor g_app_stepper;
 
 static StepperSysState_t g_system_state = STEPPER_STATE_UNINIT;
+static uint32_t g_homing_start_time = 0;       /* 记录回零动作开始的时间戳 */
+static float g_target_pos_mm = 0.0f;           /* 记录电机的目标绝对位置 (mm) */
 
 
 
@@ -196,6 +198,98 @@ uint8_t Stepper_App_ExecuteHoming(void)
 
         }
 
+/**
+  * @brief    发送非阻塞处碰撞回零指令
+  */
+void Stepper_App_StartHoming(void)
+{
+    g_system_state = STEPPER_STATE_HOMING;
+    
+    /* 1. 确保电机使能 */
+    Emm_V5_En_Control(&g_app_stepper, true, false);
+    HAL_Delay(100);
+    
+    /* 2. 触发原点碰撞回零 (模式2) */
+    g_app_stepper.origin_state = 0xFF;
+    Emm_V5_Origin_Trigger_Return(&g_app_stepper, 2, false);
+    
+    /* 3. 记录起跑的时间戳 */
+    g_homing_start_time = HAL_GetTick();
+}
+
+/**
+  * @brief    在主循环中非阻塞轮询步进电机的回零状态
+  */
+uint8_t Stepper_App_PollHoming(void)
+{
+    static uint32_t last_poll_time = 0;
+    uint32_t now = HAL_GetTick();
+    
+    /* 每 250ms 定期发起一次回零状态参数读取请求 (只发不阻塞等) */
+    if (now - last_poll_time >= 250)
+    {
+        last_poll_time = now;
+        Emm_V5_Read_Sys_Params(&g_app_stepper, S_ORG);
+    }
+    
+    /* 检查后台接收 DMA 自动更新回来的 origin_state */
+    if (g_app_stepper.origin_state != 0xFF && (g_app_stepper.origin_state & 0x04) == 0)
+    {
+        /* A. 回零成功，将当前碰撞位标记为绝对 0 点 */
+        Emm_V5_Reset_CurPos_To_Zero(&g_app_stepper);
+        HAL_Delay(100);
+        
+        /* B. 为防止磨损，向反方向(CW)倒车避让 4mm 安全行程 */
+        uint32_t back_pulses = (uint32_t)((SAFE_CLEARANCE_MM / SCREW_LEAD_MM) * PULSE_PER_ROUND);
+        Emm_V5_Pos_Control(&g_app_stepper, EMM_CW, 500, 10, back_pulses, false, false);
+        HAL_Delay(800);
+        
+        /* C. 将避让后的安全点标定为工作的绝对零位 */
+        Emm_V5_Reset_CurPos_To_Zero(&g_app_stepper);
+        HAL_Delay(100);
+        
+        g_system_state = STEPPER_STATE_READY;
+        g_target_pos_mm = 0.0f; // 重置目标位置变量为零点
+        return 1;
+    }
+    
+    /* 回零失败 */
+    if (g_app_stepper.origin_state == 0)
+    {
+        g_system_state = STEPPER_STATE_ERROR;
+        return 0;
+    }
+    
+    /* 15 秒超时判定 */
+    if (now - g_homing_start_time > 15000)
+    {
+        Emm_V5_Origin_Interrupt(&g_app_stepper); /* 中断回零 */
+        g_system_state = STEPPER_STATE_ERROR;
+        return 0;
+    }
+    
+    return 2; /* 仍在回零进行中 */
+}
+
+/**
+  * @brief    判断当前升降绝对位置是否已运动到位
+  */
+bool Stepper_App_IsTargetReached(float tolerance_mm)
+{
+    float current = Stepper_App_GetCurrentPosition();
+    if (current < 0)
+    {
+        return false; /* 数据异常不认为到位 */
+    }
+    
+    /* 当前高度和目标绝对高度差在容差范围内即认为到位 */
+    if (abs(current - g_target_pos_mm) <= tolerance_mm)
+    {
+        return true;
+    }
+    return false;
+}
+
         
 
         /* 回零失败处理 */
@@ -241,6 +335,8 @@ uint8_t Stepper_App_ExecuteHoming(void)
 uint8_t Stepper_App_MoveToPosition(float position_mm, uint16_t speed_rpm)
 
 {
+    g_target_pos_mm = position_mm;
+
 
     /* 1. 安全保护：必须先回零校准基准才允许正常运动 */
 
@@ -365,9 +461,7 @@ void Stepper_App_TriggerPositionRead(void)
 
     
 
-    return -1.0f; /* 读取出错返回-1 */
-
-}
+    
 
 
 

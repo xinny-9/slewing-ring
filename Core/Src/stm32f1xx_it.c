@@ -254,26 +254,6 @@ void USART2_IRQHandler(void)
 {
   /* USER CODE BEGIN USART2_IRQn 0 */
 
-
-// 1. 判断是否是由“空闲 (IDLE) 状态”触发的中断
-  if (__HAL_UART_GET_FLAG(&huart2, UART_FLAG_IDLE) != RESET)
-  {
-      // A. 必须立即清除空闲中断标志位（通过先读SR，再读DR清除，HAL库提供了宏）
-      __HAL_UART_CLEAR_IDLEFLAG(&huart2);
-      
-      // B. 暂时停止 DMA 接收，保护当前内存数组不被新的数据篡改
-      HAL_UART_DMAStop(&huart2);
-      
-      // C. 核心计算：用缓冲区总大小 减去 DMA 计数器中剩余的大小，即为实际收到的字节数
-      g_stepper_rx_length = STEPPER_RX_BUF_SIZE - __HAL_DMA_GET_COUNTER(huart2.hdmarx);
-      
-      // D. 【分发解析】调用我们封装的应用层优雅解析接口，更新电机数据
-      Stepper_App_Parse(g_stepper_rx_buffer, g_stepper_rx_length);
-      
-      // E. 清空接收长度，重新启动 DMA 循环接收，准备接下一包
-      g_stepper_rx_length = 0;
-      HAL_UART_Receive_DMA(&huart2, g_stepper_rx_buffer, STEPPER_RX_BUF_SIZE);
-  }
   /* USER CODE END USART2_IRQn 0 */
   HAL_UART_IRQHandler(&huart2);
   /* USER CODE BEGIN USART2_IRQn 1 */

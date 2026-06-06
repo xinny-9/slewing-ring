@@ -33,23 +33,14 @@
   */
 
 /* USER CODE END Header */
-
 /* Includes ------------------------------------------------------------------*/
-
 #include "main.h"
-
 #include "dma.h"
-
 #include "tim.h"
-
 #include "usart.h"
-
 #include "gpio.h"
 
-
-
 /* Private includes ----------------------------------------------------------*/
-
 /* USER CODE BEGIN Includes */
 
 #include "stdio.h"
@@ -68,41 +59,28 @@
 
 /* USER CODE END Includes */
 
-
-
 /* Private typedef -----------------------------------------------------------*/
-
 /* USER CODE BEGIN PTD */
 
 
 
 /* USER CODE END PTD */
 
-
-
 /* Private define ------------------------------------------------------------*/
-
 /* USER CODE BEGIN PD */
 
 
 
 /* USER CODE END PD */
 
-
-
 /* Private macro -------------------------------------------------------------*/
-
 /* USER CODE BEGIN PM */
 
 
 
 /* USER CODE END PM */
 
-
-
 /* Private variables ---------------------------------------------------------*/
-
-
 
 /* USER CODE BEGIN PV */
 
@@ -138,22 +116,15 @@ uint8_t g_stepper_rx_length = 0;
 
 /* USER CODE END PV */
 
-
-
 /* Private function prototypes -----------------------------------------------*/
-
 void SystemClock_Config(void);
-
 /* USER CODE BEGIN PFP */
 
 
 
 /* USER CODE END PFP */
 
-
-
 /* Private user code ---------------------------------------------------------*/
-
 /* USER CODE BEGIN 0 */
 
 
@@ -182,37 +153,22 @@ PUTCHAR_PROTOTYPE
 
 /* USER CODE END 0 */
 
-
-
 /**
-
   * @brief  The application entry point.
-
   * @retval int
-
   */
-
 int main(void)
-
 {
-
   /* USER CODE BEGIN 1 */
 
 
 
   /* USER CODE END 1 */
 
-
-
   /* MCU Configuration--------------------------------------------------------*/
 
-
-
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-
   HAL_Init();
-
-
 
   /* USER CODE BEGIN Init */
 
@@ -220,13 +176,8 @@ int main(void)
 
   /* USER CODE END Init */
 
-
-
   /* Configure the system clock */
-
   SystemClock_Config();
-
-
 
   /* USER CODE BEGIN SysInit */
 
@@ -234,27 +185,18 @@ int main(void)
 
   /* USER CODE END SysInit */
 
-
-
   /* Initialize all configured peripherals */
-
   MX_GPIO_Init();
-
   MX_DMA_Init();
-
   MX_USART1_UART_Init();
-
   MX_USART2_UART_Init();
-
   MX_USART3_UART_Init();
-
   MX_TIM3_Init();
-
   /* USER CODE BEGIN 2 */
 
 
 
-  // 此函数内部会自动将电机的撞墙寻零速度设为温和的 20 RPM，检测电流设为 200 mA
+  // 此函数内部会自动将电机的撞墙寻零速度设为温和的 ，检测电流设为 
 
   Stepper_App_Init(&huart2, 1); 
 
@@ -264,7 +206,7 @@ int main(void)
 
   // 启动 DMA 接收，将 huart2 收到的数据自动搬运到全局变量 g_stepper_rx_buffer 中
 
-  HAL_UART_Receive_DMA(&huart2, g_stepper_rx_buffer, STEPPER_RX_BUF_SIZE);
+  HAL_UARTEx_ReceiveToIdle_DMA(&huart2, g_stepper_rx_buffer, STEPPER_RX_BUF_SIZE);
 
   
 
@@ -360,10 +302,7 @@ int main(void)
 
   /* USER CODE END 2 */
 
-
-
   /* Infinite loop */
-
   /* USER CODE BEGIN WHILE */
 
   while (1)
@@ -371,8 +310,6 @@ int main(void)
   {
 
     /* USER CODE END WHILE */
-
-
 
     /* USER CODE BEGIN 3 */
 
@@ -382,135 +319,95 @@ int main(void)
 
 
 
-    /* 
+    
 
-       * 示例 A：控制滑块以 1000 RPM 速度，运动到绝对坐标 80.0mm 位置 
-
-       */
-
-      printf(">> 正在前往 80.0mm 位置...\r\n");
-
-      Stepper_App_MoveToPosition(80.0f, 1000);
-
-      HAL_Delay(5000); // 延时 5 秒等待运动到达并驻留
-
-      /* 
-
-       * 示例 B：控制滑块以 1200 RPM 速度，继续前进到绝对坐标 150.0mm 位置 
-
-       */
-
+ 
       printf(">> 正在前往 150.0mm 位置...\r\n");
 
       Stepper_App_MoveToPosition(150.0f, 1200);
 
-      HAL_Delay(6000); // 延时 6 秒
+      HAL_Delay(25000);
 
-      /* 
+   
 
-       * 示例 C：【优雅地回到 0 点】
+      // 滑块会以 1000 RPM 的工作速度快速、丝滑地直接滑回 0mm 处，绝对不会发生撞墙。
 
-       * 因为上电时已经做过撞墙寻零了，此处直接输入 0.0f 绝对距离即可。
-
-       * 滑块会以 1000 RPM 的工作速度快速、丝滑地直接滑回 0mm 处，绝对不会发生撞墙。
-
-       */
+       
 
       printf(">> 任务结束，快速返回 0mm 零点位置（无撞击）...\r\n");
 
       Stepper_App_MoveToPosition(0.0f, 1000);
 
-      HAL_Delay(8000); // 延时 8 秒等待其回到起点，开始下一轮循环
+      HAL_Delay(25000); // 延时 15 秒等待其回到起点，开始下一轮循环
 
 
 
   }
 
   /* USER CODE END 3 */
-
 }
-
-
 
 /**
-
   * @brief System Clock Configuration
-
   * @retval None
-
   */
-
 void SystemClock_Config(void)
-
 {
-
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
-
-
   /** Initializes the RCC Oscillators according to the specified parameters
-
   * in the RCC_OscInitTypeDef structure.
-
   */
-
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
-
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
-
   RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
-
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-
   RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;
-
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-
   {
-
     Error_Handler();
-
   }
-
-
 
   /** Initializes the CPU, AHB and APB buses clocks
-
   */
-
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
-
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-
-
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
-
   {
-
     Error_Handler();
-
   }
-
 }
 
-
-
 /* USER CODE BEGIN 4 */
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
+{
+    if (huart->Instance == huart2.Instance)
+    {
+        /* 收到空闲中断或缓冲区满，直接解析实际收到的 Size 字节 */
+        Stepper_App_Parse(g_stepper_rx_buffer, Size);
+        
+        /* 重新使能空闲中断 DMA 接收 */
+        HAL_UARTEx_ReceiveToIdle_DMA(&huart2, g_stepper_rx_buffer, STEPPER_RX_BUF_SIZE);
+    }
+}
+
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+{
+    if (huart->Instance == huart2.Instance)
+    {
+        /* 发生串口溢出(ORE)或帧错误(FE)时，自动清零错误状态并重新使能接收，防止接收死锁 */
+        HAL_UARTEx_ReceiveToIdle_DMA(&huart2, g_stepper_rx_buffer, STEPPER_RX_BUF_SIZE);
+    }
+}
+
 
 
 
@@ -570,26 +467,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
     // 判断数据是否来自于与电机连接的串口2
 
-    if (huart->Instance == huart2.Instance)
-
-    {
-
-        /* 
-
-         * 【异步解析机制说明】
-
-         * 当您在后台（例如利用串口空闲中断 IDLE，或者单字节状态机）接收到了完整的一帧电机回复包，
-
-         * 并存放在 g_stepper_rx_buffer 中，长度为 g_stepper_rx_length 时，
-
-         * 直接调用该接口。它会自动解算该回复数据包，并无延迟地刷新电机句柄里的 real_pos 等状态。
-
-         */
-
-        Stepper_App_Parse(g_stepper_rx_buffer, g_stepper_rx_length);
-
-    }
-
 
 
     if (huart->Instance == huart3.Instance)
@@ -606,20 +483,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 /* USER CODE END 4 */
 
-
-
 /**
-
   * @brief  This function is executed in case of error occurrence.
-
   * @retval None
-
   */
-
 void Error_Handler(void)
-
 {
-
   /* USER CODE BEGIN Error_Handler_Debug */
 
   /* User can add his own implementation to report the HAL error return state */
@@ -633,31 +502,18 @@ void Error_Handler(void)
   }
 
   /* USER CODE END Error_Handler_Debug */
-
 }
 
-
-
 #ifdef  USE_FULL_ASSERT
-
 /**
-
   * @brief  Reports the name of the source file and the source line number
-
   *         where the assert_param error has occurred.
-
   * @param  file: pointer to the source file name
-
   * @param  line: assert_param error line source number
-
   * @retval None
-
   */
-
 void assert_failed(uint8_t *file, uint32_t line)
-
 {
-
   /* USER CODE BEGIN 6 */
 
   /* User can add his own implementation to report the file name and line number,
@@ -665,8 +521,5 @@ void assert_failed(uint8_t *file, uint32_t line)
      ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
 
   /* USER CODE END 6 */
-
 }
-
 #endif /* USE_FULL_ASSERT */
-
