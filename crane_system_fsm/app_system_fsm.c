@@ -379,6 +379,7 @@ void System_FSM_Process(void)
             else if (homing_res == 0)
             {
                 /* 回零失败或超时 */
+                printf(">> [系统状态]: 升降回零失败或超时。\r\n");
                 g_system_state = SYS_STATE_ERROR;
             }
             break;
