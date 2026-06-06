@@ -73,7 +73,7 @@ static void trigger_servo_read_blocking_alternative(ServoDevice_t *dev, uint8_t 
     Servo_App_TriggerRead(dev, cmd);
     
     /* 2. 设置 10ms 通信等待超时计时器 (50ms 周期内 10ms 足够响应) */
-    g_servo_reply_timeout_counter = 1; 
+    g_servo_reply_timeout_counter = 3; 
     
     /* 3. 切换状态至非阻塞等待响应 */
     g_system_state = SYS_STATE_WAIT_SERVO_REPLY;
@@ -374,6 +374,7 @@ void System_FSM_Process(void)
             {
                 printf(">> [系统状态]: 升降回零成功。开始扫描总线舵机...\r\n");
                 detect_idx = 1;
+                HAL_Delay(300);
                 g_system_state = SYS_STATE_DETECT_SERVOS;
             }
             else if (homing_res == 0)
@@ -386,45 +387,52 @@ void System_FSM_Process(void)
         }
             
         case SYS_STATE_DETECT_SERVOS:
-            /* 3. 逐个非阻塞读取舵机 ID，判断是否全部在线 */
-            if (detect_idx <= 3)
+            /* 3. 依次检测底座、对准、抓爪舵机是否在线 */
             {
-                ServoDevice_t *p_dev = get_servo_device_by_id(detect_idx);
+                ServoDevice_t *p_dev = NULL;
+                if (detect_idx == 1)      p_dev = &g_servo_base;
+                else if (detect_idx == 2) p_dev = &g_servo_align;
+                else if (detect_idx == 3) p_dev = &g_servo_claw;
+                
                 if (p_dev != NULL)
                 {
                     trigger_servo_read_blocking_alternative(p_dev, SERIAL_SERVO_ID_READ, SYS_STATE_DETECT_SERVOS);
                 }
-            }
-            else
-            {
-                /* 三个舵机均握手成功在线，进入待命就绪状态 */
-                g_system_state = SYS_STATE_READY;
-                telemetry_ticks = 0;
-                printf(">> [系统就绪]: 升降电机与三路舵机健康自检完毕，READY 待命中。\r\n");
+                else
+                {
+                    /* 超过 3，说明全部检测完成，进入 READY 状态 */
+                    g_system_state = SYS_STATE_READY;
+                    telemetry_ticks = 0;
+                    printf(">> [系统状态]: 自检扫描完成，系统处于 READY 状态。\r\n");
+                }
             }
             break;
             
         case SYS_STATE_READY:
-            /* 4. 空闲待命模式 */
-            /* 50ms节拍下，每 20 节拍 (1000ms) 触发一次数据回读更新，完全非阻塞异步 */
+            /* 4. 闲置状态 */
+            /* 50ms单位，每 20 次 (1000ms) 触发一次数据读取和全局异步更新 */
             telemetry_ticks++;
             if (telemetry_ticks >= 20)
             {
                 telemetry_ticks = 0;
                 
-            /* 主动发出读指令，回传的数据会在串口回调中被 ParseFrame 解析并刷新给结构体 */
+                /* 同步高度 */
                 Stepper_App_TriggerPositionRead();
                 
-            /* 轮询读总线舵机的位置、电压和温度 */
-                static uint8_t poll_servo_id = 1;
-                ServoDevice_t *p_dev = get_servo_device_by_id(poll_servo_id);
+                /* 轮流获取底座、对准和抓爪的位置 */
+                static uint8_t poll_idx = 1;
+                ServoDevice_t *p_dev = NULL;
+                if (poll_idx == 1)      p_dev = &g_servo_base;
+                else if (poll_idx == 2) p_dev = &g_servo_align;
+                else if (poll_idx == 3) p_dev = &g_servo_claw;
+                
                 if (p_dev != NULL)
                 {
                     trigger_servo_read_blocking_alternative(p_dev, SERIAL_SERVO_POS_READ, SYS_STATE_READY);
                 }
                 
-                poll_servo_id++;
-                if (poll_servo_id > 3) poll_servo_id = 1;
+                poll_idx++;
+                if (poll_idx > 3) poll_idx = 1;
             }
             break;
             
@@ -472,6 +480,11 @@ void System_FSM_Process(void)
                 /* 探测握手包成功 */
                         if (g_saved_pre_state == SYS_STATE_DETECT_SERVOS)
                         {
+                            const char *servo_name = "未知舵机";
+                            if (g_waiting_dev_ptr == &g_servo_base)       servo_name = "底座旋转舵机";
+                            else if (g_waiting_dev_ptr == &g_servo_align) servo_name = "抓斗对齐舵机";
+                            else if (g_waiting_dev_ptr == &g_servo_claw)  servo_name = "抓爪开合舵机";
+                            printf(">> [自检]: 检测到 %s 在线，物理ID: %d\r\n", servo_name, g_waiting_dev_ptr->id);
                             detect_idx++;
                         }
                     }
@@ -498,6 +511,14 @@ void System_FSM_Process(void)
                 if (g_waiting_dev_ptr != NULL)
                 {
                     g_waiting_dev_ptr->err_count++;
+                    if (g_saved_pre_state == SYS_STATE_DETECT_SERVOS)
+                    {
+                        const char *servo_name = "未知舵机";
+                        if (g_waiting_dev_ptr == &g_servo_base)       servo_name = "底座旋转舵机";
+                        else if (g_waiting_dev_ptr == &g_servo_align) servo_name = "抓斗对齐舵机";
+                        else if (g_waiting_dev_ptr == &g_servo_claw)  servo_name = "抓爪开合舵机";
+                        printf(">> [自检超时]: 检测 %s 失败，可能不在线，物理ID: %d\r\n", servo_name, g_waiting_dev_ptr->id);
+                    }
                 }
                 
                 /* 超时强制返回先前状态，防止总锁卡死主程序 */

@@ -319,12 +319,12 @@ void Stepper_App_EmergencyStop(void)
   */
 void Stepper_App_Parse(uint8_t *rx_buf, uint8_t rx_len)
 {
-    printf(">> Stepper Rx [%d]:", rx_len);
-    for (uint8_t i = 0; i < rx_len; i++)
-    {
-        printf(" %02X", rx_buf[i]);
-    }
-    printf("\r\n");
+    // printf(">> Stepper Rx [%d]:", rx_len);
+    // for (uint8_t i = 0; i < rx_len; i++)
+    // {
+    //     printf(" %02X", rx_buf[i]);
+    // }
+    // printf("\r\n");
     
     Emm_V5_Parse_Frame(&g_app_stepper, rx_buf, rx_len);
 }
