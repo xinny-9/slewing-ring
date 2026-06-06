@@ -331,6 +331,8 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
         Stepper_App_Parse(g_stepper_rx_buffer, Size);
         
         /* 重新使能空闲中断 DMA 接收 */
+        HAL_UART_AbortReceive(&huart2);
+        
         HAL_UARTEx_ReceiveToIdle_DMA(&huart2, g_stepper_rx_buffer, STEPPER_RX_BUF_SIZE);
     }
 }

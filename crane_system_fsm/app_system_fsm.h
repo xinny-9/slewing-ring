@@ -23,7 +23,7 @@
 #define ELEV_HEIGHT_SAFE            (20.0f)     /* 搬运与旋转过程中的安全悬挂高度 (mm)，防拖地碰撞 */
 #define ELEV_HEIGHT_GRAB            (150.0f)    /* 抓取货物时的下降高度 (mm) */
 #define ELEV_HEIGHT_DROP            (100.0f)    /* 释放货物时的安全下降高度 (mm) */
-#define ELEV_HEIGHT_MAX_LIMIT       (3500.0f)   /* 升降机构最大安全物理行程上限位 (mm) */
+#define ELEV_HEIGHT_MAX_LIMIT       (200.0f)   /* 升降机构最大安全物理行程上限位 (mm) */
 
 /* B. 水平角度及对齐参数 (总线舵机 1 & 2 - 范围: 0 ~ 1000) */
 #define BASE_ROT_POS_START          (100)       /* 初始对齐货物地盘旋转角度 (舵机1) */

@@ -24,7 +24,8 @@ static Emm_V5_Motor g_app_stepper;
 
 static StepperSysState_t g_system_state = STEPPER_STATE_UNINIT;
 static uint32_t g_homing_start_time = 0;       /* 记录回零动作开始的时间戳 */
-static float g_target_pos_mm = 0.0f;           /* 记录电机的目标绝对位置 (mm) */
+static float g_target_pos_mm = 0.0f;
+volatile uint8_t g_has_started_homing = 0;           /* 记录电机的目标绝对位置 (mm) */
 
 
 
@@ -104,6 +105,7 @@ void Stepper_App_Init(UART_HandleTypeDef *huart, uint8_t addr)
 uint8_t Stepper_App_ExecuteHoming(void)
 {
     g_system_state = STEPPER_STATE_HOMING;
+    g_has_started_homing = 0;
     
     /* 1. 确认使能 */
     Emm_V5_En_Control(&g_app_stepper, true, false);
@@ -119,18 +121,25 @@ uint8_t Stepper_App_ExecuteHoming(void)
     while (1)
     {
         HAL_Delay(250); /* 250ms 查询一次 */
-        
         Emm_V5_Read_Sys_Params(&g_app_stepper, S_ORG);
-        
         HAL_Delay(50);
         printf(">> Homing poll, current state = 0x%02X\r\n", g_app_stepper.origin_state);
         
-        /* 成功 */
-        if (g_app_stepper.origin_state != 0xFF && (g_app_stepper.origin_state & 0x04) == 0)
+        /* 判定电机确实已经开动回零中 (Bit 2 变为 1, 对应 0x07) */
+        if (g_app_stepper.origin_state != 0xFF && (g_app_stepper.origin_state & 0x04) == 0x04)
         {
+            g_has_started_homing = 1;
+        }
+        
+        /* 成功条件：已被检测到正在回零，且 Bit 2 变回了 0 (代表回零结束并停止) */
+        if (g_has_started_homing && g_app_stepper.origin_state != 0xFF && (g_app_stepper.origin_state & 0x04) == 0)
+        {
+            g_has_started_homing = 0;
+            
             Emm_V5_Reset_CurPos_To_Zero(&g_app_stepper);
             HAL_Delay(100);
             
+            // 安全反向回缩 (顺时针 CW)
             uint32_t back_pulses = (uint32_t)((SAFE_CLEARANCE_MM / SCREW_LEAD_MM) * PULSE_PER_ROUND);
             Emm_V5_Pos_Control(&g_app_stepper, EMM_CW, 500, 10, back_pulses, false, false);
             HAL_Delay(800); 
@@ -146,6 +155,7 @@ uint8_t Stepper_App_ExecuteHoming(void)
         /* 失败 */
         if (g_app_stepper.origin_state == 0)
         {
+            g_has_started_homing = 0;
             g_system_state = STEPPER_STATE_ERROR;
             return 0;
         }
@@ -153,6 +163,7 @@ uint8_t Stepper_App_ExecuteHoming(void)
         /* 超时 */
         if (HAL_GetTick() - start_time > 15000)
         {
+            g_has_started_homing = 0;
             Emm_V5_Origin_Interrupt(&g_app_stepper);
             g_system_state = STEPPER_STATE_ERROR;
             return 0;
@@ -161,45 +172,62 @@ uint8_t Stepper_App_ExecuteHoming(void)
 }
 
 /**
-  * @brief    发送异步回零指令 (非阻塞)
+  * @brief    异步回零触发 (主控状态机调度)
   */
 void Stepper_App_StartHoming(void)
 {
     g_system_state = STEPPER_STATE_HOMING;
+    g_has_started_homing = 0; // 重置归零开动标记锁
     
     /* 1. 确认使能 */
     Emm_V5_En_Control(&g_app_stepper, true, false);
     HAL_Delay(100);
     
-    /* 2. 触发回零 (模式2) */
+    /* 2. 在触发前再次下发回零配置，使用 false 避免 Flash 写入忙碌 */
+    Emm_V5_Origin_Modify_Params(&g_app_stepper, false, HOMING_MODE, HOMING_DIR, HOMING_SPEED_RPM, HOMING_TIMEOUT_MS, HOMING_SL_VEL_RPM, HOMING_SL_CUR_MA, HOMING_SL_TIME_MS, HOMING_AUTO_START);
+    HAL_Delay(150);
+    
+    /* 3. 触发回零 (模式2) */
     g_app_stepper.origin_state = 0xFF;
     Emm_V5_Origin_Trigger_Return(&g_app_stepper, 2, false);
     
-    /* 3. 记录开始时间 */
+    /* 4. 延时 300ms 让电机先开动并清除旧的完成状态 */
+    HAL_Delay(300);
+    
+    /* 5. 记录开始时间 */
     g_homing_start_time = HAL_GetTick();
 }
 
 /**
-  * @brief    循环查询回零状态 (非阻塞)
+  * @brief    轮询查询回零状态 (主控状态机轮询)
   */
 uint8_t Stepper_App_PollHoming(void)
 {
     static uint32_t last_poll_time = 0;
     uint32_t now = HAL_GetTick();
     
-    /* 每 250ms 发送一次查询 */
+    /* 每 250ms 查询一次电机回零状态 */
     if (now - last_poll_time >= 250)
     {
         last_poll_time = now;
         Emm_V5_Read_Sys_Params(&g_app_stepper, S_ORG);
     }
     
-    /* 检查是否回零成功 */
-    if (g_app_stepper.origin_state != 0xFF && (g_app_stepper.origin_state & 0x04) == 0)
+    /* 判定电机确实已经开动回零中 (Bit 2 变为 1, 对应 0x07) */
+    if (g_app_stepper.origin_state != 0xFF && (g_app_stepper.origin_state & 0x04) == 0x04)
     {
+        g_has_started_homing = 1;
+    }
+    
+    /* 成功条件：已被检测到正在回零，且 Bit 2 变回了 0 (代表回零结束并停止) */
+    if (g_has_started_homing && g_app_stepper.origin_state != 0xFF && (g_app_stepper.origin_state & 0x04) == 0)
+    {
+        g_has_started_homing = 0; // 重置标记锁
+        
         Emm_V5_Reset_CurPos_To_Zero(&g_app_stepper);
         HAL_Delay(100);
         
+        // 安全反向回缩 (顺时针 CW)
         uint32_t back_pulses = (uint32_t)((SAFE_CLEARANCE_MM / SCREW_LEAD_MM) * PULSE_PER_ROUND);
         Emm_V5_Pos_Control(&g_app_stepper, EMM_CW, 500, 10, back_pulses, false, false);
         HAL_Delay(800);
@@ -209,30 +237,29 @@ uint8_t Stepper_App_PollHoming(void)
         
         g_system_state = STEPPER_STATE_READY;
         g_target_pos_mm = 0.0f;
-        return 1; /* 成功 */
+        return 1; /* 返回成功 */
     }
     
-    /* 回零失败 */
+    /* 失败 */
     if (g_app_stepper.origin_state == 0)
     {
+        g_has_started_homing = 0;
         g_system_state = STEPPER_STATE_ERROR;
-        return 0; /* 失败 */
+        return 0; /* 返回失败 */
     }
     
-    /* 超时判定 */
+    /* 15 秒超时判定 */
     if (now - g_homing_start_time > 15000)
     {
+        g_has_started_homing = 0;
         Emm_V5_Origin_Interrupt(&g_app_stepper);
         g_system_state = STEPPER_STATE_ERROR;
-        return 0; /* 失败 */
+        return 0; /* 返回超时 */
     }
     
     return 2; /* 正在回零中 */
 }
 
-/**
-  * @brief    判断当前位置是否到位
-  */
 bool Stepper_App_IsTargetReached(float tolerance_mm)
 {
     float current = Stepper_App_GetCurrentPosition();
