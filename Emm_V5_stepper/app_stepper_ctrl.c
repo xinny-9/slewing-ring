@@ -144,7 +144,7 @@ uint8_t Stepper_App_ExecuteHoming(void)
             
             // 倒退回缩 (方向顺时针，即 EMM_CW)
             uint32_t back_pulses = (uint32_t)((SAFE_CLEARANCE_MM / SCREW_LEAD_MM) * PULSE_PER_ROUND);
-            Emm_V5_Pos_Control(&g_app_stepper, EMM_CW, 500, 10, back_pulses, false, false);
+            Emm_V5_Pos_Control(&g_app_stepper, EMM_CCW, 500, 10, back_pulses, false, false);
             HAL_Delay(800); 
             
             Emm_V5_Reset_CurPos_To_Zero(&g_app_stepper);
@@ -231,7 +231,7 @@ uint8_t Stepper_App_PollHoming(void)
         
         // 倒退回缩 (方向顺时针，即 EMM_CW)
         uint32_t back_pulses = (uint32_t)((SAFE_CLEARANCE_MM / SCREW_LEAD_MM) * PULSE_PER_ROUND);
-        Emm_V5_Pos_Control(&g_app_stepper, EMM_CW, 500, 10, back_pulses, false, false);
+        Emm_V5_Pos_Control(&g_app_stepper, EMM_CCW, 500, 10, back_pulses, false, false);
         HAL_Delay(800);
         
         Emm_V5_Reset_CurPos_To_Zero(&g_app_stepper);

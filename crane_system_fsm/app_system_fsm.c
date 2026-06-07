@@ -159,7 +159,7 @@ static void Run_Sequence_Step_Handler(void)
                 if (g_seq_step != SYS_TASK_IDLE)
                 {
             /* 连续运行下，开始第一次半咬合（合拢至450），同时升降同步微下压挖掘 */
-                    float target_height = ELEV_HEIGHT_GRAB + ELEV_FIRST_DIG_DEPTH;
+                    float target_height = ELEV_HEIGHT_GRAB - ELEV_FIRST_DIG_DEPTH;
                     Stepper_App_MoveToPosition(target_height, STEPPER_SPEED_ELEV);
                     Servo_App_SetTarget(&g_servo_claw, CLAW_MID_CLOSE_POS, GRAB_CLAW_DURATION_MS / 2);
                     g_seq_step = SYS_TASK_STEP_4_1_WAIT;
@@ -172,7 +172,7 @@ static void Run_Sequence_Step_Handler(void)
             if (Stepper_App_IsTargetReached(TOLERANCE_STEPPER_MM) && Servo_App_IsTargetReached(&g_servo_claw))
             {
             /* 向上回提（提起）8mm释放挤压应力，同时爪子微张（退回到350） */
-                float target_height = ELEV_HEIGHT_GRAB + ELEV_FIRST_DIG_DEPTH - ELEV_RETRACT_HEIGHT;
+                float target_height = ELEV_HEIGHT_GRAB - ELEV_FIRST_DIG_DEPTH + ELEV_RETRACT_HEIGHT;
                 Stepper_App_MoveToPosition(target_height, STEPPER_SPEED_ELEV);
                 Servo_App_SetTarget(&g_servo_claw, CLAW_MID_BACK_POS, GRAB_CLAW_DURATION_MS / 4);
                 g_seq_step = SYS_TASK_STEP_4_2_WAIT;
@@ -194,7 +194,7 @@ static void Run_Sequence_Step_Handler(void)
             if (g_settle_delay_counter == 0)
             {
             /* 向下全力深入挖掘压入15mm，同时爪子完全闭合咬死 (750) */
-                float target_height = ELEV_HEIGHT_GRAB + ELEV_SECOND_DIG_DEPTH;
+                float target_height = ELEV_HEIGHT_GRAB - ELEV_SECOND_DIG_DEPTH;
                 Stepper_App_MoveToPosition(target_height, STEPPER_SPEED_ELEV);
                 Servo_App_SetTarget(&g_servo_claw, GRAB_CLAW_POS_CLOSE, GRAB_CLAW_DURATION_MS);
                 g_seq_step = SYS_TASK_STEP_4_3_WAIT;
@@ -593,7 +593,7 @@ uint8_t System_FSM_StartSingleStep(uint8_t step_num)
             break;
         case 4:
             {
-                float target_height = ELEV_HEIGHT_GRAB + ELEV_FIRST_DIG_DEPTH;
+                float target_height = ELEV_HEIGHT_GRAB - ELEV_FIRST_DIG_DEPTH;
                 Stepper_App_MoveToPosition(target_height, STEPPER_SPEED_ELEV);
                 Servo_App_SetTarget(&g_servo_claw, CLAW_MID_CLOSE_POS, GRAB_CLAW_DURATION_MS / 2);
                 g_seq_step = SYS_TASK_STEP_4_1_WAIT; /* 等待第一阶段到位 */

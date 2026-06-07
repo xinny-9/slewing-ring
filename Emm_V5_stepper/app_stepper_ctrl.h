@@ -55,7 +55,7 @@
  */
 
 #define HOMING_MODE           2       /* 模式2：堵转检测回零 */
-#define HOMING_DIR            EMM_CCW /* 逆时针回零 */
+#define HOMING_DIR            EMM_CW /* 逆时针回零 */
 #define HOMING_SPEED_RPM      50      /* 安全回零速度：50 RPM */
 #define HOMING_TIMEOUT_MS     10000   /* 碰撞超时时间：10000 ms (10秒) */
 #define HOMING_SL_VEL_RPM     10      /* 碰撞检测速度门限：10 RPM */
