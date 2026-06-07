@@ -39,7 +39,7 @@
 #define PULSE_PER_ROUND       3200.0f /* 电机单圈脉冲数 (1.8°步进角，16细分下为 3200 脉冲) */
 #define STEPPER_SUBDIVISION   16      /* 电机细分：16 细分（即 3200 脉冲/圈） */
 
-#define SCREW_MAX_TRAVEL_MM   300.0f  /* 丝杆模组的最大安全物理行程 (单位: mm) */
+#define SCREW_MAX_TRAVEL_MM   265.0f  /* 丝杆模组的最大安全物理行程 (单位: mm) */
 
 #define SAFE_CLEARANCE_MM     1.0f    /* 碰撞回零成功后，反向倒车避让的“安全缓冲垫片”距离 */
 

@@ -23,7 +23,7 @@
 #define ELEV_HEIGHT_SAFE            (180.0f)     /* 搬运与旋转过程中的安全悬挂高度 (mm)，防拖地碰撞 */
 #define ELEV_HEIGHT_GRAB            (40.0f)    /* 抓取货物时的下降高度 (mm) */
 #define ELEV_HEIGHT_DROP            (100.0f)    /* 释放货物时的安全下降高度 (mm) */
-#define ELEV_HEIGHT_MAX_LIMIT       (300.0f)
+#define ELEV_HEIGHT_MAX_LIMIT       (265.0f)
 #define HOMING_RAISE_HEIGHT_MM      (260.0f)    /* 归零自检后安全抬升高度 (mm) */
 #define HOMING_RAISE_SPEED_RPM      (800)       /* 归零自检后安全抬升速度 (RPM) */   /* 升降机构最大安全物理行程上限位 (mm) */
 
