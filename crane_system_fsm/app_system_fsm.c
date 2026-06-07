@@ -402,13 +402,43 @@ void System_FSM_Process(void)
                 }
                 else
                 {
-                    /* 超过 3，说明全部检测完成，进入 READY 状态 */
-                    g_system_state = SYS_STATE_READY;
+                    /* 3个舵机自检全部完成，开始安全抬升与合爪 */
+                    Stepper_App_MoveToPosition(HOMING_RAISE_HEIGHT_MM, HOMING_RAISE_SPEED_RPM);
+                    Servo_App_SetTarget(&g_servo_claw, GRAB_CLAW_POS_CLOSE, GRAB_CLAW_DURATION_MS);
+                    g_system_state = SYS_STATE_POST_HOMING_RAISE;
                     telemetry_ticks = 0;
-                    printf(">> [系统状态]: 自检扫描完成，系统处于 READY 状态。\n");
+                    printf(">> [系统状态]: 自检扫描完成，开始安全抬升至 %.1f mm 并闭合抓爪...\r\n", HOMING_RAISE_HEIGHT_MM);
                 }
             }
             break;
+
+        case SYS_STATE_POST_HOMING_RAISE:
+        {
+            /* 每 100ms (2 ticks) 轮询一次位置和运动舵机 */
+            static uint32_t raise_read_ticks = 0;
+            raise_read_ticks++;
+            if (raise_read_ticks >= 2)
+            {
+                raise_read_ticks = 0;
+                Stepper_App_TriggerPositionRead();
+                
+                if (g_servo_claw.state == SERVO_STATE_MOVING)
+                {
+                    trigger_servo_read_blocking_alternative(&g_servo_claw, SERIAL_SERVO_POS_READ, SYS_STATE_POST_HOMING_RAISE);
+                }
+            }
+            
+            Servo_App_Update(&g_servo_claw);
+            
+            // 判断升降电机和抓爪舵机是否都运动到位
+            if (Stepper_App_IsTargetReached(TOLERANCE_STEPPER_MM) && Servo_App_IsTargetReached(&g_servo_claw))
+            {
+                g_system_state = SYS_STATE_READY;
+                telemetry_ticks = 0;
+                printf(">> [系统状态]: 归零抬升与合爪完成，系统处于 READY 状态。\r\n");
+            }
+            break;
+        }
             
         case SYS_STATE_READY:
             /* 4. 闲置状态 */
@@ -704,6 +734,7 @@ void System_FSM_GetStatusString(char *buf, uint16_t len)
         case SYS_STATE_UNINIT:           state_str = "SYS_UNINIT"; break;
         case SYS_STATE_HOMING_STEPPER:   state_str = "HOMING_STEPPER"; break;
         case SYS_STATE_DETECT_SERVOS:    state_str = "DETECT_SERVOS"; break;
+        case SYS_STATE_POST_HOMING_RAISE:state_str = "POST_HOMING_RAISE"; break;
         case SYS_STATE_READY:            state_str = "SYS_READY"; break;
         case SYS_STATE_RUNNING_SEQUENCE:  state_str = "RUNNING_SEQUENCE"; break;
         case SYS_STATE_WAIT_SERVO_REPLY: state_str = "WAIT_SERVO_REPLY"; break;
