@@ -254,7 +254,7 @@ uint8_t Stepper_App_PollHoming(void)
     }
     
     /* ³¬Ê±°²È«À¹½Ø (15 Ãë) */
-    if (now - g_homing_start_time > 15000)
+    if (now - g_homing_start_time > 45000)
     {
         g_has_started_homing = 0;
         Emm_V5_Origin_Interrupt(&g_app_stepper);

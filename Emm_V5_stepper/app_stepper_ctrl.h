@@ -39,7 +39,7 @@
 #define PULSE_PER_ROUND       3200.0f /* 电机单圈脉冲数 (1.8°步进角，16细分下为 3200 脉冲) */
 #define STEPPER_SUBDIVISION   16      /* 电机细分：16 细分（即 3200 脉冲/圈） */
 
-#define SCREW_MAX_TRAVEL_MM   200.0f  /* 丝杆模组的最大安全物理行程 (单位: mm) */
+#define SCREW_MAX_TRAVEL_MM   300.0f  /* 丝杆模组的最大安全物理行程 (单位: mm) */
 
 #define SAFE_CLEARANCE_MM     1.0f    /* 碰撞回零成功后，反向倒车避让的“安全缓冲垫片”距离 */
 
@@ -57,7 +57,7 @@
 #define HOMING_MODE           2       /* 模式2：堵转检测回零 */
 #define HOMING_DIR            EMM_CW /* 逆时针回零 */
 #define HOMING_SPEED_RPM      50      /* 安全回零速度：50 RPM */
-#define HOMING_TIMEOUT_MS     10000   /* 碰撞超时时间：10000 ms (10秒) */
+#define HOMING_TIMEOUT_MS     45000   /* 碰撞超时时间：10000 ms (10秒) */
 #define HOMING_SL_VEL_RPM     10      /* 碰撞检测速度门限：10 RPM */
 #define HOMING_SL_CUR_MA      500     /* 堵转判定电流：300 mA */
 #define HOMING_SL_TIME_MS     200     /* 堵转判定时间：100 ms */
