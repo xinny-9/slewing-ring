@@ -301,7 +301,7 @@ uint8_t Stepper_App_MoveToPosition(float position_mm, uint16_t speed_rpm)
     }
     
     uint32_t absolute_pulses = (uint32_t)((position_mm / SCREW_LEAD_MM) * PULSE_PER_ROUND);
-    Emm_V5_Pos_Control(&g_app_stepper, 0, speed_rpm, 15, absolute_pulses, true, false);
+    Emm_V5_Pos_Control(&g_app_stepper, EMM_CCW, speed_rpm, 15, absolute_pulses, true, false);
     
     return 1;
 }
@@ -334,7 +334,7 @@ void Stepper_App_Parse(uint8_t *rx_buf, uint8_t rx_len)
   */
 float Stepper_App_GetCurrentPosition(void)
 {
-    float position = (g_app_stepper.real_pos / 360.0f) * SCREW_LEAD_MM;
+    float position = -(g_app_stepper.real_pos / 360.0f) * SCREW_LEAD_MM;
     return position;
 }
 
