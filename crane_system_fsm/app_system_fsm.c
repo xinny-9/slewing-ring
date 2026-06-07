@@ -18,7 +18,7 @@ volatile uint32_t g_settle_delay_counter = 0;
 
 /* 上位机可修改的抓斗放箱对齐角度全局变量 */
 volatile uint16_t g_grab_align_pos_box = GRAB_ALIGN_POS_BOX;
-volatile uint16_t g_grab_align_pos_start = 100; /* 抓取时抓斗的初始对齐朝向 (舵机2) */
+volatile uint16_t g_grab_align_pos_start = 300; /* 抓取时抓斗的初始对齐朝向 (舵机2) */
 
 /* 系统状态机当前状态与搬运序列工步 */
 static SystemState_t g_system_state = SYS_STATE_UNINIT;
