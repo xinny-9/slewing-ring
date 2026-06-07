@@ -25,7 +25,8 @@
 #define ELEV_HEIGHT_DROP            (100.0f)    /* 释放货物时的安全下降高度 (mm) */
 #define ELEV_HEIGHT_MAX_LIMIT       (265.0f)
 #define HOMING_RAISE_HEIGHT_MM      (260.0f)    /* 归零自检后安全抬升高度 (mm) */
-#define HOMING_RAISE_SPEED_RPM      (800)       /* 归零自检后安全抬升速度 (RPM) */   /* 升降机构最大安全物理行程上限位 (mm) */
+#define HOMING_RAISE_SPEED_RPM      (800)       /* 归零自检后安全抬升速度 (RPM) */
+#define HOMING_RAISE_ALIGN_POS      (300)       /* 归零自检后铲斗水平对齐角度 */       /* 归零自检后安全抬升速度 (RPM) */   /* 升降机构最大安全物理行程上限位 (mm) */
 
 /* B. 水平角度及对齐参数 (总线舵机 1 & 2 - 范围: 0 ~ 1000) */
 #define BASE_ROT_POS_START          (100)       /* 初始对齐货物地盘旋转角度 (舵机1) */

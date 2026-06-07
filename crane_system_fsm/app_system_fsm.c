@@ -405,6 +405,7 @@ void System_FSM_Process(void)
                     /* 3个舵机自检全部完成，开始安全抬升与合爪 */
                     Stepper_App_MoveToPosition(HOMING_RAISE_HEIGHT_MM, HOMING_RAISE_SPEED_RPM);
                     Servo_App_SetTarget(&g_servo_claw, GRAB_CLAW_POS_CLOSE, GRAB_CLAW_DURATION_MS);
+                    Servo_App_SetTarget(&g_servo_align, HOMING_RAISE_ALIGN_POS, GRAB_ALIGN_DURATION_MS);
                     g_system_state = SYS_STATE_POST_HOMING_RAISE;
                     telemetry_ticks = 0;
                     printf(">> [系统状态]: 自检扫描完成，开始安全抬升至 %.1f mm 并闭合抓爪...\r\n", HOMING_RAISE_HEIGHT_MM);
@@ -426,12 +427,16 @@ void System_FSM_Process(void)
                 {
                     trigger_servo_read_blocking_alternative(&g_servo_claw, SERIAL_SERVO_POS_READ, SYS_STATE_POST_HOMING_RAISE);
                 }
+                else if (g_servo_align.state == SERVO_STATE_MOVING)
+                {
+                    trigger_servo_read_blocking_alternative(&g_servo_align, SERIAL_SERVO_POS_READ, SYS_STATE_POST_HOMING_RAISE);
+                }
             }
             
             Servo_App_Update(&g_servo_claw);
             
             // 判断升降电机和抓爪舵机是否都运动到位
-            if (Stepper_App_IsTargetReached(TOLERANCE_STEPPER_MM) && Servo_App_IsTargetReached(&g_servo_claw))
+            if (Stepper_App_IsTargetReached(TOLERANCE_STEPPER_MM) && Servo_App_IsTargetReached(&g_servo_claw) && Servo_App_IsTargetReached(&g_servo_align))
             {
                 g_system_state = SYS_STATE_READY;
                 telemetry_ticks = 0;
