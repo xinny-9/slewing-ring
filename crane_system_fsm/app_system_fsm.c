@@ -18,6 +18,7 @@ volatile uint32_t g_settle_delay_counter = 0;
 
 /* 上位机可修改的抓斗放箱对齐角度全局变量 */
 volatile uint16_t g_grab_align_pos_box = GRAB_ALIGN_POS_BOX;
+volatile uint16_t g_grab_align_pos_start = 100; /* 抓取时抓斗的初始对齐朝向 (舵机2) */
 
 /* 系统状态机当前状态与搬运序列工步 */
 static SystemState_t g_system_state = SYS_STATE_UNINIT;
@@ -46,6 +47,7 @@ void System_FSM_Init(void)
     g_system_state = SYS_STATE_UNINIT;
     g_seq_step = SYS_TASK_IDLE;
     g_grab_align_pos_box = GRAB_ALIGN_POS_BOX;
+    g_grab_align_pos_start = 100;
     
     g_fsm_update_flag = 0;
     g_single_step_only = 0;
@@ -125,7 +127,7 @@ static void Run_Sequence_Step_Handler(void)
                 {
             /* 连续运行下，才立即发送爪子开和对准指令 */
                     Servo_App_SetTarget(&g_servo_claw, GRAB_CLAW_POS_OPEN, GRAB_CLAW_DURATION_MS);
-                    Servo_App_SetTarget(&g_servo_align, GRAB_ALIGN_POS_START, GRAB_ALIGN_DURATION_MS);
+                    Servo_App_SetTarget(&g_servo_align, g_grab_align_pos_start, GRAB_ALIGN_DURATION_MS);
                     g_seq_step = SYS_TASK_STEP_3_DESCEND_GRAB;
                 }
             }
@@ -311,7 +313,7 @@ static void Run_Sequence_Step_Handler(void)
                 {
             /* 连续运行下，底座及对齐回转复位 */
                     Servo_App_SetTarget(&g_servo_base, BASE_ROT_POS_START, BASE_ROT_DURATION_MS);
-                    Servo_App_SetTarget(&g_servo_align, GRAB_ALIGN_POS_START, GRAB_ALIGN_DURATION_MS);
+                    Servo_App_SetTarget(&g_servo_align, g_grab_align_pos_start, GRAB_ALIGN_DURATION_MS);
                     g_seq_step = SYS_TASK_STEP_10_RETURN_START;
                 }
             }
@@ -582,7 +584,7 @@ uint8_t System_FSM_StartSingleStep(uint8_t step_num)
             break;
         case 2:
             Servo_App_SetTarget(&g_servo_claw, GRAB_CLAW_POS_OPEN, GRAB_CLAW_DURATION_MS);
-            Servo_App_SetTarget(&g_servo_align, GRAB_ALIGN_POS_START, GRAB_ALIGN_DURATION_MS);
+            Servo_App_SetTarget(&g_servo_align, g_grab_align_pos_start, GRAB_ALIGN_DURATION_MS);
             g_seq_step = SYS_TASK_STEP_3_DESCEND_GRAB; /* 在步骤 3 等待到位 */
             break;
         case 3:
@@ -620,7 +622,7 @@ uint8_t System_FSM_StartSingleStep(uint8_t step_num)
             break;
         case 10:
             Servo_App_SetTarget(&g_servo_base, BASE_ROT_POS_START, BASE_ROT_DURATION_MS);
-            Servo_App_SetTarget(&g_servo_align, GRAB_ALIGN_POS_START, GRAB_ALIGN_DURATION_MS);
+            Servo_App_SetTarget(&g_servo_align, g_grab_align_pos_start, GRAB_ALIGN_DURATION_MS);
             g_seq_step = SYS_TASK_STEP_10_RETURN_START; /* 在步骤 10 等待到位并复位 */
             break;
     }
@@ -682,6 +684,13 @@ void System_FSM_SetGrabAlignPos(uint16_t pos)
     printf(">> [上位机输入]: 成功微调更新货箱对齐角度变量 g_grab_align_pos_box = %d\r\n", pos);
 }
 
+void System_FSM_SetGrabAlignStartPos(uint16_t pos)
+{
+    if (pos > 1000) pos = 1000;
+    g_grab_align_pos_start = pos;
+    printf(">> [对齐设置]: 成功更新初始对齐朝向 g_grab_align_pos_start = %d\r\n", pos);
+}
+
 /**
  * @brief  获取并生成全系统状态与各运行数据，供控制台 status 命令回显
  */
@@ -731,7 +740,7 @@ void System_FSM_GetStatusString(char *buf, uint16_t len)
     snprintf(buf, len,
                  "================= 起重器系统实时状态报告 =================\r\n"
                  "  [全局系统状态]: %s | [当前工步]: %s\r\n"
-                 "  [调试运行模式]: %s | [货箱对齐角度]: %d\r\n"
+                 "  [调试运行模式]: %s | [初始对齐角度]: %d | [货箱对齐角度]: %d\r\n"
              "----------------------------------------------------------\r\n"
                  "  1. 升降高度(步进): %.2f mm\r\n"
                  "  2. 底座角度(舵机1): %d | 状态: %d | 在线: %s\r\n"
@@ -740,6 +749,7 @@ void System_FSM_GetStatusString(char *buf, uint16_t len)
              "==========================================================\r\n",
              state_str, step_str,
              g_system_control_mode == SYS_MODE_AUTO ? "AUTO (自动)" : "MANUAL (手动)",
+             g_grab_align_pos_start,
              g_grab_align_pos_box,
              Stepper_App_GetCurrentPosition(),
              g_servo_base.current_pos, g_servo_base.state, g_servo_base.is_online ? "YES" : "NO",

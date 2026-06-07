@@ -48,7 +48,8 @@ void Debug_CLI_Init(void)
     printf("     10. set_align <pos>      -> 动态对齐货箱角度 (0~1000)\r\n");
     printf("     11. status               -> 打印系统全部设备状态遥测\r\n");
     printf("     12. mode <auto/manual>   -> 动态切换系统运行模式 (默认: auto)\r\n");
-    printf("==================================================\r\n\r\n");
+
+    printf("     13. set_align_start <pos>  -> 动态修改抓取初始对准朝向 (0~1000)\n");    printf("==================================================\r\n\r\n");
 }
 
 /**
@@ -224,6 +225,15 @@ void Debug_CLI_Process(void)
                 System_FSM_SetGrabAlignPos((uint16_t)align_pos);
             } else {
                 printf(">> 参数错误! 格式应为: set_align <pos>\r\n");
+            }
+        }
+        else if (strcmp(cmd, "set_align_start") == 0) {
+            char *p1 = strtok(NULL, " ");
+            if (p1) {
+                int start_pos = atoi(p1);
+                System_FSM_SetGrabAlignStartPos((uint16_t)start_pos);
+            } else {
+                printf(">> 错误! 格式应为: set_align_start <pos>\n");
             }
         }
         else if (strcmp(cmd, "status") == 0) {

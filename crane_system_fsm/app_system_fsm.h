@@ -30,7 +30,7 @@
 #define BASE_ROT_POS_BOX            (600)       /* 货箱正上方的底盘旋转角度 (舵机1) */
 #define BASE_ROT_MIN_LIMIT          (50)        /* 底座旋转安全最小限位 */
 #define BASE_ROT_MAX_LIMIT          (950)       /* 底座旋转安全最大限位 */
-#define GRAB_ALIGN_POS_START        (100)       /* 抓取时抓斗的初始对齐朝向 (舵机2) */
+/* #define GRAB_ALIGN_POS_START        (100) -> 已改为全局配置变量 */       /* 抓取时抓斗的初始对齐朝向 (舵机2) */
 #define GRAB_ALIGN_POS_BOX          (400)       /* 货箱方向抓斗对齐角度缺省值 (仅作为上电初值) */
 
 /* C. 爪子完全开合位置 (总线舵机 3 - 范围: 0 ~ 1000) */
@@ -177,6 +177,8 @@ extern volatile uint32_t g_settle_delay_counter;           /* 延时稳定时间计时器
 
 /* 货箱对齐的偏转角度 */
 extern volatile uint16_t g_grab_align_pos_box;
+extern volatile uint16_t g_grab_align_pos_start;
+void System_FSM_SetGrabAlignStartPos(uint16_t pos);
 
 /* 全局工作模式变量 */
 extern volatile SystemControlMode_t g_system_control_mode;
