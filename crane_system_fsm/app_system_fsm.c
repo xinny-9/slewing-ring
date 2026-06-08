@@ -362,10 +362,10 @@ void System_FSM_Process(void)
     switch (g_system_state)
     {
         case SYS_STATE_UNINIT:
-            /* 1. 上电阶段，立即触发升降步进电机的非阻挡原点回零 */
-            printf(">> [系统启动]: 启动步进升降电机碰撞回零...\r\n");
-            Stepper_App_StartHoming();
-            g_system_state = SYS_STATE_HOMING_STEPPER;
+            /* 1. 上电阶段：先进行舵机自检 */
+            printf(">> [System]: Initializing, detecting servos...\r\n");
+            detect_idx = 1;
+            g_system_state = SYS_STATE_DETECT_SERVOS;
             break;
             
         case SYS_STATE_HOMING_STEPPER:
@@ -374,10 +374,10 @@ void System_FSM_Process(void)
             uint8_t homing_res = Stepper_App_PollHoming();
             if (homing_res == 1)
             {
-                printf(">> [系统状态]: 升降回零成功。开始扫描总线舵机...\r\n");
-                detect_idx = 1;
-                HAL_Delay(300);
-                g_system_state = SYS_STATE_DETECT_SERVOS;
+                printf(">> [System State]: Homing succeeded. Raising to %.1f mm...\r\n", HOMING_RAISE_HEIGHT_MM);
+                Stepper_App_MoveToPosition(HOMING_RAISE_HEIGHT_MM, HOMING_RAISE_SPEED_RPM);
+                g_system_state = SYS_STATE_POST_HOMING_RAISE;
+                telemetry_ticks = 0;
             }
             else if (homing_res == 0)
             {
@@ -389,7 +389,7 @@ void System_FSM_Process(void)
         }
             
         case SYS_STATE_DETECT_SERVOS:
-            /* 3. 依次检测底座、对准、抓爪舵机是否在线 */
+            /* 3. 检测三个对准/抓爪舵机是否在线 */
             {
                 ServoDevice_t *p_dev = NULL;
                 if (detect_idx == 1)      p_dev = &g_servo_base;
@@ -402,16 +402,43 @@ void System_FSM_Process(void)
                 }
                 else
                 {
-                    /* 3个舵机自检全部完成，开始安全抬升与合爪 */
-                    Stepper_App_MoveToPosition(HOMING_RAISE_HEIGHT_MM, HOMING_RAISE_SPEED_RPM);
+                    /* 3. 自检完成：控制铲斗闭合与水平对齐 */
                     Servo_App_SetTarget(&g_servo_claw, GRAB_CLAW_POS_CLOSE, GRAB_CLAW_DURATION_MS);
                     Servo_App_SetTarget(&g_servo_align, HOMING_RAISE_ALIGN_POS, GRAB_ALIGN_DURATION_MS);
-                    g_system_state = SYS_STATE_POST_HOMING_RAISE;
+                    g_system_state = SYS_STATE_PRE_HOMING_PREPARE;
                     telemetry_ticks = 0;
-                    printf(">> [系统状态]: 自检扫描完成，开始安全抬升至 %.1f mm 并闭合抓爪...\r\n", HOMING_RAISE_HEIGHT_MM);
+                    printf(">> [System State]: Servos detected. Closing claw and aligning to %d...\r\n", (int)HOMING_RAISE_ALIGN_POS);
                 }
             }
             break;
+
+        case SYS_STATE_PRE_HOMING_PREPARE:
+        {
+            /* 每 100ms (2 ticks) 轮询一次位置和运动状态 */
+            static uint32_t prep_read_ticks = 0;
+            prep_read_ticks++;
+            if (prep_read_ticks >= 2)
+            {
+                prep_read_ticks = 0;
+                if (g_servo_claw.state == SERVO_STATE_MOVING)
+                {
+                    trigger_servo_read_blocking_alternative(&g_servo_claw, SERIAL_SERVO_POS_READ, SYS_STATE_PRE_HOMING_PREPARE);
+                }
+                else if (g_servo_align.state == SERVO_STATE_MOVING)
+                {
+                    trigger_servo_read_blocking_alternative(&g_servo_align, SERIAL_SERVO_POS_READ, SYS_STATE_PRE_HOMING_PREPARE);
+                }
+            }
+            
+            // 判断爪子和对齐舵机是否运动到位
+            if (Servo_App_IsTargetReached(&g_servo_claw) && Servo_App_IsTargetReached(&g_servo_align))
+            {
+                printf(">> [System State]: Claw and alignment ready. Starting homing...\r\n");
+                Stepper_App_StartHoming();
+                g_system_state = SYS_STATE_HOMING_STEPPER;
+            }
+            break;
+        }
 
         case SYS_STATE_POST_HOMING_RAISE:
         {
@@ -739,6 +766,7 @@ void System_FSM_GetStatusString(char *buf, uint16_t len)
         case SYS_STATE_UNINIT:           state_str = "SYS_UNINIT"; break;
         case SYS_STATE_HOMING_STEPPER:   state_str = "HOMING_STEPPER"; break;
         case SYS_STATE_DETECT_SERVOS:    state_str = "DETECT_SERVOS"; break;
+        case SYS_STATE_PRE_HOMING_PREPARE:state_str = "PRE_HOMING_PREPARE"; break;
         case SYS_STATE_POST_HOMING_RAISE:state_str = "POST_HOMING_RAISE"; break;
         case SYS_STATE_READY:            state_str = "SYS_READY"; break;
         case SYS_STATE_RUNNING_SEQUENCE:  state_str = "RUNNING_SEQUENCE"; break;

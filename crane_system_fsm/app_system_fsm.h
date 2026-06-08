@@ -66,14 +66,15 @@
 
 /* 全局状态 */
 typedef enum {
-    SYS_STATE_UNINIT = 0,               /* 系统上电初始化 */
-    SYS_STATE_HOMING_STEPPER,           /* 步进电机复位回零 */
-    SYS_STATE_DETECT_SERVOS,            /* 总线舵机扫描检测 */
-
-    SYS_STATE_POST_HOMING_RAISE,        /* 归零后抬升及合爪 */    SYS_STATE_READY,                    /* 系统就绪状态 */
-    SYS_STATE_RUNNING_SEQUENCE,         /* 自动序列运行中 */
-    SYS_STATE_WAIT_SERVO_REPLY,         /* 等待舵机回执 */
-    SYS_STATE_ERROR                     /* 系统错误停机状态 */
+    SYS_STATE_UNINIT = 0,               /* System uninitialized */
+    SYS_STATE_DETECT_SERVOS,            /* Detect servos */
+    SYS_STATE_PRE_HOMING_PREPARE,       /* Prepare claw/align before homing */
+    SYS_STATE_HOMING_STEPPER,           /* Homing stepper */
+    SYS_STATE_POST_HOMING_RAISE,        /* Post homing raise */
+    SYS_STATE_READY,                    /* System ready */
+    SYS_STATE_RUNNING_SEQUENCE,         /* Running sequence */
+    SYS_STATE_WAIT_SERVO_REPLY,         /* Wait servo reply */
+    SYS_STATE_ERROR                     /* System error */
 } SystemState_t;
 
 /* 联动工步子状态 */
