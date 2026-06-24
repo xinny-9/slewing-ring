@@ -194,7 +194,7 @@ static void Run_Sequence_Step_Handler(void)
             if (g_settle_delay_counter == 0)
             {
             /* 向下全力深入挖掘压入15mm，同时爪子完全闭合咬死 (750) */
-                float target_height = ELEV_HEIGHT_GRAB - ELEV_SECOND_DIG_DEPTH;
+                float target_height = ELEV_HEIGHT_GRAB - ELEV_SECOND_DIG_DEPTH;//40-15=25(后期装车看情况修改)
                 Stepper_App_MoveToPosition(target_height, STEPPER_SPEED_ELEV);
                 Servo_App_SetTarget(&g_servo_claw, GRAB_CLAW_POS_CLOSE, GRAB_CLAW_DURATION_MS);
                 g_seq_step = SYS_TASK_STEP_4_3_WAIT;
@@ -615,7 +615,7 @@ uint8_t System_FSM_StartSequence(void)
 }
 
 /**
- * @brief  执行单步工步调试流转 (step 指令)
+ * @brief  执行单步工步调试流转 (step 指令)****主任务*****
  */
 uint8_t System_FSM_StartSingleStep(uint8_t step_num)
 {

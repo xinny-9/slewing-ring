@@ -38,7 +38,7 @@
 
 /* C. 爪子完全开合位置 (总线舵机 3 - 范围: 0 ~ 1000) */
 #define GRAB_CLAW_POS_OPEN          (242)       /* 爪子完全张开位置脉冲值 */
-#define GRAB_CLAW_POS_CLOSE         (435)       /* 爪子完全闭合夹紧位置脉冲值 */
+#define GRAB_CLAW_POS_CLOSE         (235)       /* 爪子完全闭合夹紧位置脉冲值 */
 
 /* D. "顿戳微张式二次深挖" 专有工艺参数 */
 #define ELEV_FIRST_DIG_DEPTH        (6.0f)      /* 第一次伴随浅压挖掘深度 (mm) */
