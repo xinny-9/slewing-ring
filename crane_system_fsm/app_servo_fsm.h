@@ -23,7 +23,7 @@
  *                                任务舵机 ID 定义
  * =============================================================================
  */
-#define SERVO_BASE_ROT           (6)   /* 舵机1：控制底座水平旋转角度 (Base Rotation) */
+#define SERVO_BASE_ROT           (5)   /* 舵机1：控制底座水平旋转角度 (Base Rotation) */
 #define SERVO_GRAB_ALIGN         (9)   /* 舵机2：控制抓斗水平旋转对准方向 (Grab Alignment) */
 #define SERVO_GRAB_CLAW          (1)   /* 舵机3：控制抓爪完全开合/抓放 (Grab Claw Open/Close) */
 

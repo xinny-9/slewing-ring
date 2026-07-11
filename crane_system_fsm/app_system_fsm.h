@@ -20,29 +20,29 @@
  */
 
 /* A. 升降高度位置参数 (步进电机 - 精度: 0.01mm) */
-#define ELEV_HEIGHT_SAFE            (180.0f)     /* 搬运与旋转过程中的安全悬挂高度 (mm)，防拖地碰撞 */
-#define ELEV_HEIGHT_GRAB            (40.0f)    /* 抓取货物时的下降高度 (mm) */
-#define ELEV_HEIGHT_DROP            (100.0f)    /* 释放货物时的安全下降高度 (mm) */
+#define ELEV_HEIGHT_SAFE            (260.0f)     /* 搬运与旋转过程中的安全悬挂高度 (mm)，防拖地碰撞 */
+#define ELEV_HEIGHT_GRAB            (20.0f)    /* 抓取货物时的下降高度 (mm) */
+#define ELEV_HEIGHT_DROP            (260.0f)    /* 释放货物时的安全下降高度 (mm) */
 #define ELEV_HEIGHT_MAX_LIMIT       (265.0f)
 #define HOMING_RAISE_HEIGHT_MM      (260.0f)    /* 归零自检后安全抬升高度 (mm) */
 #define HOMING_RAISE_SPEED_RPM      (800)       /* 归零自检后安全抬升速度 (RPM) */
-#define HOMING_RAISE_ALIGN_POS      (300)       /* 归零自检后铲斗水平对齐角度 */       /* 归零自检后安全抬升速度 (RPM) */   /* 升降机构最大安全物理行程上限位 (mm) */
+#define HOMING_RAISE_ALIGN_POS      (330)       /* 归零自检后铲斗水平对齐角度 */       /* 归零自检后安全抬升速度 (RPM) */   /* 升降机构最大安全物理行程上限位 (mm) */
 
 /* B. 水平角度及对齐参数 (总线舵机 1 & 2 - 范围: 0 ~ 1000) */
-#define BASE_ROT_POS_START          (100)       /* 初始对齐货物地盘旋转角度 (舵机1) */
-#define BASE_ROT_POS_BOX            (600)       /* 货箱正上方的底盘旋转角度 (舵机1) */
+#define BASE_ROT_POS_START          (900)       /* 初始对齐货物地盘旋转角度 (舵机1) */
+#define BASE_ROT_POS_BOX            (150)       /* 货箱正上方的底盘旋转角度 (舵机1) */
 #define BASE_ROT_MIN_LIMIT          (50)        /* 底座旋转安全最小限位 */
 #define BASE_ROT_MAX_LIMIT          (950)       /* 底座旋转安全最大限位 */
 /* #define GRAB_ALIGN_POS_START        (100) -> 已改为全局配置变量 */       /* 抓取时抓斗的初始对齐朝向 (舵机2) */
-#define GRAB_ALIGN_POS_BOX          (400)       /* 货箱方向抓斗对齐角度缺省值 (仅作为上电初值) */
+#define GRAB_ALIGN_POS_BOX          (330)       /* 货箱方向抓斗对齐角度缺省值 (仅作为上电初值) */
 
 /* C. 爪子完全开合位置 (总线舵机 3 - 范围: 0 ~ 1000) */
-#define GRAB_CLAW_POS_OPEN          (242)       /* 爪子完全张开位置脉冲值 */
-#define GRAB_CLAW_POS_CLOSE         (235)       /* 爪子完全闭合夹紧位置脉冲值 */
+#define GRAB_CLAW_POS_OPEN          (281)       /* 爪子完全张开位置脉冲值 */
+#define GRAB_CLAW_POS_CLOSE         (547)       /* 爪子完全闭合夹紧位置脉冲值 */
 
 /* D. "顿戳微张式二次深挖" 专有工艺参数 */
 #define ELEV_FIRST_DIG_DEPTH        (6.0f)      /* 第一次伴随浅压挖掘深度 (mm) */
-#define ELEV_RETRACT_HEIGHT         (8.0f)      /* 第一次压完后，向上提起释放硬应力的距离 (mm) */
+#define ELEV_RETRACT_HEIGHT         (2.0f)      /* 第一次压完后，向上提起释放硬应力的距离 (mm) */
 #define ELEV_SECOND_DIG_DEPTH       (15.0f)     /* 第二次全力深入挖掘压入的绝对深度 (mm) */
 #define CLAW_MID_CLOSE_POS          (370)       /* 第一次下压时，爪子半闭合聚拢角度 (脉冲) */
 #define CLAW_MID_BACK_POS           (300)       /* 提起释放应力时，爪子微幅向外退回张开的角度 (脉冲) */
@@ -53,6 +53,8 @@
 #define BASE_ROT_DURATION_MS        (1800)      /* 底座大范围水平旋转时间 (ms)，缓慢旋转防晃 */
 #define GRAB_ALIGN_DURATION_MS      (800)       /* 抓斗对齐旋转所用时间 (ms) */
 #define GRAB_CLAW_DURATION_MS       (600)       /* 爪子张合运行所用时间 (ms) */
+#define GRAB_CLAW_DURATION_MS_finally   (6000)       /* 爪子张合运行所用时间 (ms) *最后抓取的时间
+
 #define DELAY_GRAB_SETTLE_MS        (1000)      /* 爪子完全咬紧后，起吊前的物理稳定延时 (ms) */
 #define DELAY_DROP_SETTLE_MS        (800)       /* 爪子完全张开后，物料脱开落稳的等待延时 (ms) */
 
