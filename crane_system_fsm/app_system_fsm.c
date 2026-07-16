@@ -18,7 +18,7 @@ volatile uint32_t g_settle_delay_counter = 0;
 
 /* 上位机可修改的抓斗放箱对齐角度全局变量 */
 volatile uint16_t g_grab_align_pos_box = GRAB_ALIGN_POS_BOX;
-volatile uint16_t g_grab_align_pos_start = 300; /* 抓取时抓斗的初始对齐朝向 (舵机2) */
+volatile uint16_t g_grab_align_pos_start = 330; /* 抓取时抓斗的初始对齐朝向 (舵机2) */
 
 /* 系统状态机当前状态与搬运序列工步 */
 static SystemState_t g_system_state = SYS_STATE_UNINIT;
@@ -47,7 +47,7 @@ void System_FSM_Init(void)
     g_system_state = SYS_STATE_UNINIT;
     g_seq_step = SYS_TASK_IDLE;
     g_grab_align_pos_box = GRAB_ALIGN_POS_BOX;
-    g_grab_align_pos_start = 100;
+    g_grab_align_pos_start = 330; /* 抓取时抓斗的初始对齐朝向 (舵机2) */
     
     g_fsm_update_flag = 0;
     g_single_step_only = 0;
@@ -111,7 +111,7 @@ static void Run_Sequence_Step_Handler(void)
             break;
             
         case SYS_TASK_STEP_1_RAISE_SAFE:
-        /* 工步1: 升降先缩回至安全提升高度 (20mm) */
+        /* 工步1: 升降先缩回至安全提升高度 (260mm) */
             Stepper_App_MoveToPosition(ELEV_HEIGHT_SAFE, STEPPER_SPEED_ELEV);
             g_seq_step = SYS_TASK_STEP_2_OPEN_CLAW;
             break;
@@ -127,7 +127,7 @@ static void Run_Sequence_Step_Handler(void)
                 {
             /* 连续运行下，才立即发送爪子开和对准指令 */
                     Servo_App_SetTarget(&g_servo_claw, GRAB_CLAW_POS_OPEN, GRAB_CLAW_DURATION_MS);
-                    Servo_App_SetTarget(&g_servo_align, g_grab_align_pos_start, GRAB_ALIGN_DURATION_MS);
+                    Servo_App_SetTarget(&g_servo_align, HOMING_RAISE_ALIGN_POS, GRAB_ALIGN_DURATION_MS);
                     g_seq_step = SYS_TASK_STEP_3_DESCEND_GRAB;
                 }
             }
@@ -301,7 +301,7 @@ static void Run_Sequence_Step_Handler(void)
                 }
             }
             break;
-            
+            欧克， 
         case SYS_TASK_STEP_9_RAISE_AFTER_RELEASE:
             /* 等待升降安全撤回，代表工步9彻底完成 */
             if (Stepper_App_IsTargetReached(TOLERANCE_STEPPER_MM))
@@ -403,8 +403,12 @@ void System_FSM_Process(void)
                 else
                 {
                     /* 3. 自检完成：控制铲斗闭合与水平对齐 */
+                    Servo_App_SetTarget(&g_servo_claw, GRAB_CLAW_POS_CLOS_guo, GRAB_CLAW_DURATION_MS);
                     Servo_App_SetTarget(&g_servo_claw, GRAB_CLAW_POS_CLOSE, GRAB_CLAW_DURATION_MS);
                     Servo_App_SetTarget(&g_servo_align, HOMING_RAISE_ALIGN_POS, GRAB_ALIGN_DURATION_MS);
+                    Servo_App_SetTarget(&g_servo_base,BASE_ROT_POS_START ,BASE_ROT_DURATION_MS );
+
+                    //
                     g_system_state = SYS_STATE_PRE_HOMING_PREPARE;
                     telemetry_ticks = 0;
                     printf(">> [System State]: Servos detected. Closing claw and aligning to %d...\r\n", (int)HOMING_RAISE_ALIGN_POS);

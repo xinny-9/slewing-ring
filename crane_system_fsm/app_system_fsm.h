@@ -38,7 +38,8 @@
 
 /* C. 爪子完全开合位置 (总线舵机 3 - 范围: 0 ~ 1000) */
 #define GRAB_CLAW_POS_OPEN          (281)       /* 爪子完全张开位置脉冲值 */
-#define GRAB_CLAW_POS_CLOSE         (547)       /* 爪子完全闭合夹紧位置脉冲值 */
+#define GRAB_CLAW_POS_CLOSE         (555)       /* 爪子完全闭合夹紧位置脉冲值 */
+#define GRAB_CLAW_POS_CLOS_guo      (567)       /* 爪子完全闭合夹紧位置脉冲值 */
 
 /* D. "顿戳微张式二次深挖" 专有工艺参数 */
 #define ELEV_FIRST_DIG_DEPTH        (6.0f)      /* 第一次伴随浅压挖掘深度 (mm) */
@@ -50,10 +51,10 @@
 /* E. 时间与速度配置参数 (S曲线及运动时间) */
 #define STEPPER_SPEED_ELEV          (800)       /* 升降步进电机的移动速度 (RPM) */
 #define STEPPER_ACC_ELEV            (15)        /* 升降步进电机加减速档位 (0 ~ 15，S曲线平滑防抖) */
-#define BASE_ROT_DURATION_MS        (1800)      /* 底座大范围水平旋转时间 (ms)，缓慢旋转防晃 */
+#define BASE_ROT_DURATION_MS        (2800)      /* 底座大范围水平旋转时间 (ms)，缓慢旋转防晃 */
 #define GRAB_ALIGN_DURATION_MS      (800)       /* 抓斗对齐旋转所用时间 (ms) */
 #define GRAB_CLAW_DURATION_MS       (600)       /* 爪子张合运行所用时间 (ms) */
-#define GRAB_CLAW_DURATION_MS_finally   (6000)       /* 爪子张合运行所用时间 (ms) *最后抓取的时间
+#define GRAB_CLAW_DURATION_MS_finally   (8000)       /* 爪子张合运行所用时间 (ms) *最后抓取的时间
 
 #define DELAY_GRAB_SETTLE_MS        (1000)      /* 爪子完全咬紧后，起吊前的物理稳定延时 (ms) */
 #define DELAY_DROP_SETTLE_MS        (800)       /* 爪子完全张开后，物料脱开落稳的等待延时 (ms) */
