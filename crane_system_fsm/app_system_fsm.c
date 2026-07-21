@@ -301,7 +301,7 @@ static void Run_Sequence_Step_Handler(void)
                 }
             }
             break;
-            欧克， 
+
         case SYS_TASK_STEP_9_RAISE_AFTER_RELEASE:
             /* 等待升降安全撤回，代表工步9彻底完成 */
             if (Stepper_App_IsTargetReached(TOLERANCE_STEPPER_MM))
