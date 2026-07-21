@@ -57,7 +57,8 @@
 
 #include "../crane_system_fsm/app_system_fsm.h"
 
-
+#include "../cargo_door_drv/tb6612fng.h"
+#include "../cargo_door_drv/cargo_door.h"
 
 /* USER CODE END Includes */
 
@@ -86,13 +87,31 @@
 
 /* USER CODE BEGIN PV */
 
-/* �������������� */
+TB6612_MotorTypeDef motorA = {
+    .IN1_Port = GPIOB,
+    .IN1_Pin = GPIO_PIN_15,
+    .IN2_Port = GPIOB,
+    .IN2_Pin = GPIO_PIN_14,
+    .pwm_timer = &htim1,
+    .pwm_channel = TIM_CHANNEL_3
+};
+
+TB6612_MotorTypeDef motorB = {
+    .IN1_Port = GPIOB,
+    .IN1_Pin = GPIO_PIN_13,
+    .IN2_Port = GPIOB,
+    .IN2_Pin = GPIO_PIN_12,
+    .pwm_timer = &htim1,
+    .pwm_channel = TIM_CHANNEL_4
+};
+
+/* 声明步进电机句柄 */
 
 Emm_V5_Motor stepper;
 
 
 
-/* �����첽������صĻ��涨�� (����ʹ�ô���2���ӵ��) */
+/* 串口异步接收相关的缓存定义 (假设使用串口2连接电机) */
 
 #define RX_BUFFER_SIZE  64
 
@@ -106,7 +125,7 @@ uint8_t g_stepper_rx_len = 0;
 
 
 
-/* �����첽���ջ��� (ʹ�� huart2 ���Ӳ������) */
+/* 串口异步接收缓存 (使用 huart2 连接步进电机) */
 
 #define STEPPER_RX_BUF_SIZE  64
 
@@ -194,38 +213,39 @@ int main(void)
   MX_USART2_UART_Init();
   MX_USART3_UART_Init();
   MX_TIM3_Init();
+  MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 
 
 
-  // �˺����ڲ����Զ��������ײǽѰ���ٶ���Ϊ�º͵� ����������Ϊ 
+  // 此函数内部会自动将电机的撞墙寻零速度设为温和的 ，检测电流设为 
 
   Stepper_App_Init(&huart2, 1); 
 
   
 
-  //���������������� DMA ѭ�����գ���ʹ�ܿ����жϼ���
+  //【核心启动】开启 DMA 循环接收，并使能空闲中断监听
 
-  // ���� DMA ���գ��� huart2 �յ��������Զ����˵�ȫ�ֱ��� g_stepper_rx_buffer ��
+  // 启动 DMA 接收，将 huart2 收到的数据自动搬运到全局变量 g_stepper_rx_buffer 中
 
   HAL_UARTEx_ReceiveToIdle_DMA(&huart2, g_stepper_rx_buffer, STEPPER_RX_BUF_SIZE);
 
   
 
-  // ���� huart2 �Ĵ��ڿ����ж� (IDLE)
+  // 开启 huart2 的串口空闲中断 (IDLE)
 
   __HAL_UART_ENABLE_IT(&huart2, UART_IT_IDLE);
 
 
 
-  /* 3. ��ʼ�����ػ�����ϵͳ״̬�������Զ���ת���������㼰�豸��⣩ */
+  /* 3. 初始化起重机主控系统状态机（将自动流转非阻塞回零及设备检测） */
   System_FSM_Init();
 
 
 
 
 
- /* ��ʼ���������������������ػص���ͬʱ���� huart1 ���״� HAL �жϽ��ռ��� */
+ /* 初始化总线物理层驱动并挂载回调，同时启动 huart1 的首次 HAL 中断接收监听 */
 
   Serial_Servo_HAL_Init();
 
@@ -235,45 +255,41 @@ int main(void)
 
 
 
-  /* ��ʼ�������� PC ���������е��Կ���̨������ huart3 ���״α�׼ 1 �ֽ��жϽ��ռ��� */
+  /* 初始化独立的 PC 串口命令行调试控制台，开启 huart3 的首次标准 1 字节中断接收监听 */
 
   Debug_CLI_Init();
+  printf(">>串口调试初始化完成\r\n");
 
-  printf(">>���ڵ��Գ�ʼ�����\r\n");
+  /* 4. 启动 TIM1 PWM 输出通道 3 (PA10) & 4 (PA11)，并使能 TIM1 主输出 (MOE) */
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
+  __HAL_TIM_MOE_ENABLE(&htim1);
 
+  // 5. 初始化仓门 A (上舱门): 电机 motorA, 开限位 KEY4 (PA5), 关限位 KEY3 (PA4)
+  CargoDoor_Init(&door_top, "Door_Top", &motorA, GPIOA, GPIO_PIN_5, GPIOA, GPIO_PIN_4);
 
+  // 6. 初始化仓门 B (下舱门): 电机 motorB, 开限位 KEY1 (PA15), 关限位 KEY2 (PB3)
+  CargoDoor_Init(&door_lower, "Door_Lower", &motorB, GPIOA, GPIO_PIN_15, GPIOB, GPIO_PIN_3);
 
-  
-
-  
-
-
-
-  
-
-  /*  ���� TIM3 �� 10ms ��ʱ�жϷ��񣬹���ң�� */
-
+  /*  开 TIM3  10ms 定时中断服务，挂载遥 */
   HAL_TIM_Base_Start_IT(&htim3);
-
-  
-
-
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-
   while (1)
-
   {
-
     /* USER CODE END WHILE */
 
-     /* 1. ��������̨���� 3 �����н��� */
+     /* 1. 处理控制台串 3 命令行交 */
      Debug_CLI_Process();
 
-     /* 2. ״̬�� 50ms ˢ�½��� */
+     /* 2. 舱门状态机非阻塞更新轮询 */
+     CargoDoor_Update(&door_top);
+     CargoDoor_Update(&door_lower);
+
+     /* 3. 状态机 50ms 刷新节拍 */
      if (g_fsm_update_flag)
      {
          g_fsm_update_flag = 0;
@@ -327,10 +343,10 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
     if (huart->Instance == huart2.Instance)
     {
-        /* �յ������жϻ򻺳�������ֱ�ӽ���ʵ���յ��� Size �ֽ� */
+        /* 收到空闲中断或缓冲区满，直接解析实际收到的 Size 字节 */
         Stepper_App_Parse(g_stepper_rx_buffer, Size);
         
-        /* ����ʹ�ܿ����ж� DMA ���� */
+        /* 重新使能空闲中断 DMA 接收 */
         HAL_UART_AbortReceive(&huart2);
         
         HAL_UARTEx_ReceiveToIdle_DMA(&huart2, g_stepper_rx_buffer, STEPPER_RX_BUF_SIZE);
@@ -341,7 +357,7 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
     if (huart->Instance == huart2.Instance)
     {
-        /* �����������(ORE)��֡����(FE)ʱ���Զ��������״̬������ʹ�ܽ��գ���ֹ�������� */
+        /* 发生串口溢出(ORE)或帧错误(FE)时，自动清零错误状态并重新使能接收，防止接收死锁 */
         HAL_UARTEx_ReceiveToIdle_DMA(&huart2, g_stepper_rx_buffer, STEPPER_RX_BUF_SIZE);
     }
 }
@@ -359,7 +375,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
     if (htim->Instance == TIM3)
     {
-        /* 1. �߾���������ʱ���ݼ� (10ms ����) */
+        /* 1. 高精度软件计时器递减 (10ms 节拍) */
         if (g_servo_reply_timeout_counter > 0)
         {
             g_servo_reply_timeout_counter--;
@@ -373,7 +389,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
             g_settle_delay_counter--;
         }
 
-        /* 2. ״̬�� FSM ��ѭ��ˢ�±�־ (10ms * 5 = 50ms / 20Hz ��Ƶ) */
+        /* 2. 状态机 FSM 主循环刷新标志 (10ms * 5 = 50ms / 20Hz 降频) */
         static uint8_t tick_divider = 0;
         tick_divider++;
         if (tick_divider >= 5)
@@ -390,9 +406,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
 /**
 
-  * @brief  ��׼ HAL �⴮�ڽ����ж���ɻص����� (USER CODE 4 ����)
+  * @brief  标准 HAL 库串口接收中断完成回调函数 (USER CODE 4 区域)
 
-  * @note   �ڴ˴��������š��ԳƵطַ��������Բ�ͬ�����豸�����ݰ��������� stm32f1xx_it.c��
+  * @note   在此处极度优雅、对称地分发处理来自不同串口设备的数据包，零侵入 stm32f1xx_it.c！
 
   */
 
@@ -402,7 +418,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
   {
 
-    // �������Դ��� 1 (���߶��) �Ļش������ֽ����� */
+    // 处理来自串口 1 (总线舵机) 的回传接收字节数据 */
 
     Serial_Servo_RxCallback(huart);
 

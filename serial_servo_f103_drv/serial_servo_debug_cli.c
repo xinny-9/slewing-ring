@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "../crane_system_fsm/app_system_fsm.h"
+#include "../cargo_door_drv/cargo_door.h"
 
 #define CLI_RX_LEN 64
 static uint8_t g_cli_rx_buf[CLI_RX_LEN];
@@ -48,8 +49,10 @@ void Debug_CLI_Init(void)
     printf("     10. set_align <pos>      -> 动态对齐货箱角度 (0~1000)\r\n");
     printf("     11. status               -> 打印系统全部设备状态遥测\r\n");
     printf("     12. mode <auto/manual>   -> 动态切换系统运行模式 (默认: auto)\r\n");
-
-    printf("     13. set_align_start <pos>  -> 动态修改抓取初始对准朝向 (0~1000)\n");    printf("==================================================\r\n\r\n");
+    printf("     13. set_align_start <pos>  -> 动态修改抓取初始对准朝向 (0~1000)\n");
+    printf("     14. door <open/close/stop> <top/lower> -> 舱门控制\r\n");
+    printf("     15. door status [top/lower] -> 查看舱门状态\r\n");
+    printf("==================================================\r\n\r\n");
 }
 
 /**
@@ -255,8 +258,48 @@ void Debug_CLI_Process(void)
                 printf(">> 参数错误! 格式应为: mode <auto/manual>\r\n");
             }
         }
+        else if (strcmp(cmd, "door") == 0) {
+            char *p1 = strtok(NULL, " "); // open/close/stop/status
+            char *p2 = strtok(NULL, " "); // top/lower
+            if (p1) {
+                if (strcmp(p1, "status") == 0) {
+                    if (p2) {
+                        if (strcmp(p2, "top") == 0) {
+                            CargoDoor_PrintStatus(&door_top);
+                        } else if (strcmp(p2, "lower") == 0) {
+                            CargoDoor_PrintStatus(&door_lower);
+                        } else {
+                            printf(">> 错误! 未知的舱门名称 '%s'. 格式: door status [top/lower]\r\n", p2);
+                        }
+                    } else {
+                        CargoDoor_PrintStatus(&door_top);
+                        CargoDoor_PrintStatus(&door_lower);
+                    }
+                }
+                else if (strcmp(p1, "open") == 0 && p2) {
+                    if (strcmp(p2, "top") == 0) CargoDoor_Open(&door_top);
+                    else if (strcmp(p2, "lower") == 0) CargoDoor_Open(&door_lower);
+                    else printf(">> 错误! 未知的舱门名称 '%s'\r\n", p2);
+                }
+                else if (strcmp(p1, "close") == 0 && p2) {
+                    if (strcmp(p2, "top") == 0) CargoDoor_Close(&door_top);
+                    else if (strcmp(p2, "lower") == 0) CargoDoor_Close(&door_lower);
+                    else printf(">> 错误! 未知的舱门名称 '%s'\r\n", p2);
+                }
+                else if (strcmp(p1, "stop") == 0 && p2) {
+                    if (strcmp(p2, "top") == 0) CargoDoor_Stop(&door_top);
+                    else if (strcmp(p2, "lower") == 0) CargoDoor_Stop(&door_lower);
+                    else printf(">> 错误! 未知的舱门名称 '%s'\r\n", p2);
+                }
+                else {
+                    printf(">> 错误! 格式为: door <open/close/stop> <top/lower> 或 door status [top/lower]\r\n");
+                }
+            } else {
+                printf(">> 错误! 格式为: door <open/close/stop> <top/lower> 或 door status [top/lower]\r\n");
+            }
+        }
         else {
-           printf(">> 未知指令! 仅支持格式: pos/read/stop/free/lock/motor_pos/seq/next/step/set_align/status/mode\r\n");
+           printf(">> 未知指令! 仅支持格式: pos/read/stop/free/lock/motor_pos/seq/next/step/set_align/status/mode/door\r\n");
         }
     }
     

@@ -336,7 +336,7 @@
               <MiscControls />
               <Define>USE_HAL_DRIVER,STM32F103xB</Define>
               <Undefine />
-              <IncludePath>../Core/Inc;../Drivers/STM32F1xx_HAL_Driver/Inc;../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F1xx/Include;../Drivers/CMSIS/Include;../serial_servo_f103_drv;../zdt_stepper;../Emm_V5_stepper;../crane_system_fsm</IncludePath>
+              <IncludePath>../Core/Inc;../Drivers/STM32F1xx_HAL_Driver/Inc;../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F1xx/Include;../Drivers/CMSIS/Include;../serial_servo_f103_drv;../zdt_stepper;../Emm_V5_stepper;../crane_system_fsm;../cargo_door_drv</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -640,6 +640,21 @@
               <FileName>app_stepper_ctrl.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Emm_V5_stepper\app_stepper_ctrl.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>cargo_door_drv</GroupName>
+          <Files>
+            <File>
+              <FileName>tb6612fng.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cargo_door_drv\tb6612fng.c</FilePath>
+            </File>
+            <File>
+              <FileName>cargo_door.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cargo_door_drv\cargo_door.c</FilePath>
             </File>
           </Files>
         </Group>
